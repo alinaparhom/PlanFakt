@@ -17,8 +17,21 @@ function passwordHash(password, salt) {
 function initialData() {
   return {
     users: [{ id: crypto.randomUUID(), name: ADMIN_LOGIN, login: ADMIN_LOGIN, role: 'Администратор', salt: ADMIN_SALT, passwordHash: ADMIN_PASSWORD_HASH, status: 'Активен' }],
-    objects: [{ id: crypto.randomUUID(), name: 'DEPO', address: 'Минск', status: 'Активный' }]
+    objects: [{ id: crypto.randomUUID(), name: 'Филимонова', address: 'Адрес не указан', status: 'Активный' }]
   };
+}
+
+function ensureFirstObject(data) {
+  if (!data.objects.length) {
+    data.objects.push(initialData().objects[0]);
+    return true;
+  }
+  if (data.objects[0].name === 'DEPO') {
+    data.objects[0].name = 'Филимонова';
+    data.objects[0].address = 'Адрес не указан';
+    return true;
+  }
+  return false;
 }
 
 function ensureFirstAdmin(data) {
@@ -75,7 +88,9 @@ function publicUser(user) {
 function createAuthHandler() {
   const sessions = new Map();
   const data = loadData();
-  if (ensureFirstAdmin(data)) saveData(data);
+  const adminUpdated = ensureFirstAdmin(data);
+  const objectUpdated = ensureFirstObject(data);
+  if (adminUpdated || objectUpdated) saveData(data);
 
   function getSession(request) {
     const match = (request.headers.cookie || '').match(/(?:^|;\s*)planfakt_session=([^;]+)/);

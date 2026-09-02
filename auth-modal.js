@@ -16,6 +16,7 @@
     document.getElementById('profileRole').textContent = user.role;
     document.getElementById('pageTitle').dataset.dashboardTitle = 'Добрый день, ' + user.name + '!';
     document.querySelectorAll('.admin-navigation').forEach(function (item) { item.hidden = user.role !== 'Администратор'; });
+    if (window.PlanFaktRoles) window.PlanFaktRoles.refresh();
   }
 
   function open(callback) {
@@ -76,5 +77,5 @@
   modal.querySelectorAll('[data-auth-close]').forEach(function (button) { button.addEventListener('click', close); });
   document.addEventListener('keydown', function (event) { if (event.key === 'Escape') close(); });
 
-  window.PlanFaktAuth = { requireLogin: requireLogin, isAuthenticated: function () { return Boolean(user); } };
+  window.PlanFaktAuth = { requireLogin: requireLogin, isAuthenticated: function () { return Boolean(user); }, getUser: function () { return user; } };
 })();
