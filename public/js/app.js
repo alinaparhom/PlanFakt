@@ -1,4 +1,12 @@
-import { api, json } from './api.js';
+async function api(url, options = {}) {
+  const response = await fetch(`/api${url}`, { credentials: 'same-origin', ...options });
+  if (response.status === 204) return null;
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) throw Object.assign(new Error(data.error || 'Ошибка запроса'), { status: response.status });
+  return data;
+}
+
+const json = (method, body) => ({ method, headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
 
 const state = { user: null, objects: [], contractors: [], objectId: localStorage.getItem('pf_object'), page: 'dashboard', analytics: null };
 const $ = (selector, root = document) => root.querySelector(selector);

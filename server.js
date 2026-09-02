@@ -5,7 +5,7 @@ const express = require('express');
 const { createStore } = require('./src/store');
 const { authRouter, requireAuth } = require('./src/auth');
 const { apiRouter } = require('./src/api');
-const { createTelegramBot } = require('./bot/telegram-bot');
+const { createTelegramBot } = require('./src/telegram');
 
 const app = express();
 const port = Number(process.env.PORT || 3000);
