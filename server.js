@@ -30,7 +30,7 @@ loadLocalEnv();
 
 const server = http.createServer(async (request, response) => {
   const pathname = new URL(request.url, 'http://localhost').pathname;
-  if (pathname.startsWith('/api/auth/') && await handleAuth(request, response, pathname)) return;
+  if (pathname.startsWith('/api/') && await handleAuth(request, response, pathname)) return;
   if (pathname === '/health') {
     response.writeHead(200, { 'content-type': 'application/json; charset=utf-8' });
     response.end(JSON.stringify({ ok: true }));
@@ -51,6 +51,7 @@ const server = http.createServer(async (request, response) => {
     }
     response.writeHead(200, {
       'content-type': contentTypes[path.extname(filePath)] || 'application/octet-stream',
+      'cache-control': 'no-store',
       'x-content-type-options': 'nosniff'
     });
     response.end(content);
