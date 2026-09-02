@@ -5,7 +5,7 @@
   "description": "План/Факт — Telegram-бот и Mini App",
   "scripts": {
     "start": "node server.js",
-    "check": "node --check server.js && node --check bot/telegram-bot.js && node --check views.js && node --check app.js && node --check telegram.js"
+    "check": "node --check server.js && node --check bot/telegram-bot.js && node --check views.js && node --check role-access.js && node --check app.js && node --check telegram.js"
   },
   "engines": {
     "node": ">=18"
