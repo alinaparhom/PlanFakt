@@ -1,6 +1,0 @@
-.env
-.DS_Store
-node_modules/
-npm-debug.log*
-.planfakt-data.json
-.planfakt-data.json.tmp
