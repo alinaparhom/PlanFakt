@@ -2,10 +2,10 @@
   "name": "planfakt-telegram-mini-app",
   "version": "1.0.0",
   "private": true,
-  "description": "План/Факт — Telegram-бот и Mini App",
+  "description": "Подключение Telegram-бота к сайту и Mini App",
   "scripts": {
     "start": "node server.js",
-    "check": "node --check server.js && node --check auth.js && node --check auth-modal.js && node --check admin-panel.js && node --check bot/telegram-bot.js && node --check views.js && node --check role-access.js && node --check app.js && node --check telegram.js"
+    "check": "node --check server.js && node --check bot/telegram-bot.js && node --check telegram.js"
   },
   "engines": {
     "node": ">=18"
