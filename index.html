@@ -3,10 +3,144 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <title>Telegram Mini App</title>
+  <meta name="theme-color" content="#f5f7f6">
+  <meta name="description" content="ПланФакт — ежедневный производственный контроль строительства">
+  <title>ПланФакт — производственный контроль</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
   <script src="https://telegram.org/js/telegram-web-app.js?61"></script>
 </head>
 <body>
+  <div class="app-shell">
+    <aside class="sidebar" id="sidebar">
+      <a class="brand" href="#dashboard" aria-label="ПланФакт">
+        <span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i></span>
+        <span>План<span>Факт</span></span>
+      </a>
+
+      <nav class="main-nav" aria-label="Основная навигация">
+        <p class="nav-caption">Рабочее пространство</p>
+        <a class="nav-link active" href="#dashboard" data-page="dashboard"><span class="icon">⌂</span><span>Дашборд</span></a>
+        <a class="nav-link" href="#analytics" data-page="analytics"><span class="icon">⌁</span><span>План / Факт</span><b>12</b></a>
+        <a class="nav-link" href="#contractors" data-page="contractors"><span class="icon">▦</span><span>Подрядчики</span></a>
+        <a class="nav-link" href="#reports" data-page="reports"><span class="icon">▤</span><span>Отчёты</span><em>3</em></a>
+        <a class="nav-link" href="#resources" data-page="resources"><span class="icon">♙</span><span>Люди и техника</span></a>
+        <a class="nav-link" href="#photos" data-page="photos"><span class="icon">▧</span><span>Фотографии</span></a>
+        <a class="nav-link" href="#milestones" data-page="milestones"><span class="icon">⚑</span><span>Вехи</span></a>
+        <p class="nav-caption">Управление</p>
+        <a class="nav-link" href="#schedules" data-page="schedules"><span class="icon">⇧</span><span>Графики</span></a>
+        <a class="nav-link" href="#archive" data-page="archive"><span class="icon">□</span><span>Архив</span></a>
+        <a class="nav-link admin-only" href="#users" data-page="users"><span class="icon">♙</span><span>Пользователи</span></a>
+        <a class="nav-link admin-only" href="#settings" data-page="settings"><span class="icon">⚙</span><span>Настройки</span></a>
+      </nav>
+
+      <div class="sidebar-footer">
+        <div class="help-card">
+          <span class="help-icon">?</span>
+          <div><strong>Нужна помощь?</strong><small>Мы всегда на связи</small></div>
+          <button aria-label="Открыть помощь">↗</button>
+        </div>
+        <div class="profile-mini">
+          <div class="avatar">АК</div>
+          <div><strong>Алексей Котов</strong><small id="roleLabel">Руководитель проекта</small></div>
+          <button class="dots" aria-label="Меню профиля">•••</button>
+        </div>
+      </div>
+    </aside>
+
+    <main class="main">
+      <header class="topbar">
+        <button class="menu-toggle" id="menuToggle" aria-label="Открыть меню">☰</button>
+        <button class="project-switch" id="projectSwitch">
+          <span class="project-icon">D</span>
+          <span><small>Текущий объект</small><strong id="projectName">DEPO · Минск</strong></span>
+          <span class="chevron">⌄</span>
+        </button>
+        <div class="top-actions">
+          <label class="global-search"><span>⌕</span><input id="globalSearch" type="search" placeholder="Поиск по объекту"><kbd>⌘ K</kbd></label>
+          <button class="circle-button" id="notificationsButton" aria-label="Уведомления">♢<i></i></button>
+          <button class="primary small" id="newReportButton"><span>＋</span> Создать отчёт</button>
+        </div>
+      </header>
+
+      <section class="page active" id="dashboard">
+        <div class="page-heading">
+          <div><div class="eyebrow"><span></span> Данные обновлены сегодня в 11:42</div><h1>Добрый день, Алексей!</h1><p>Объект DEPO идёт по графику. Вот главное на сегодня.</p></div>
+          <div class="date-control"><button id="prevDate">‹</button><span>Сегодня, <b id="displayDate">2 сентября</b></span><button id="nextDate">›</button></div>
+        </div>
+
+        <div class="stat-grid">
+          <article class="stat-card accent"><div class="stat-top"><span class="stat-icon green">↗</span><span class="trend up">+4,2%</span></div><p>Выполнение плана</p><div class="stat-value">86<span>%</span></div><div class="progress"><i style="width:86%"></i></div><small>1 080 из 1 250 м³</small></article>
+          <article class="stat-card"><div class="stat-top"><span class="stat-icon coral">⌁</span><span class="trend down">−170 м³</span></div><p>Отклонение</p><div class="stat-value">−13,6<span>%</span></div><div class="micro-bars"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div><small>Требует внимания</small></article>
+          <article class="stat-card"><div class="stat-top"><span class="stat-icon violet">♙</span><span class="trend up">+8</span></div><p>Людей на объекте</p><div class="stat-value">128</div><div class="avatars"><i>А</i><i>Б</i><i>Г</i><i>Д</i><i>+9</i></div><small>13 подрядчиков</small></article>
+          <article class="stat-card"><div class="stat-top"><span class="stat-icon blue">◇</span><span class="trend neutral">без изменений</span></div><p>Единиц техники</p><div class="stat-value">24</div><div class="equipment-icons">▰ ◈ ▰</div><small>18 активно сейчас</small></article>
+        </div>
+
+        <div class="dashboard-grid">
+          <article class="panel chart-panel">
+            <div class="panel-head"><div><h2>Накопительный План / Факт</h2><p>Сентябрь 2026 · Все подрядчики</p></div><div class="legend"><span><i class="plan-dot"></i>План</span><span><i class="fact-dot"></i>Факт</span><button class="more">•••</button></div></div>
+            <div class="chart-wrap">
+              <div class="y-labels"><span>1 500</span><span>1 200</span><span>900</span><span>600</span><span>300</span><span>0</span></div>
+              <svg class="line-chart" viewBox="0 0 760 260" preserveAspectRatio="none" aria-label="График накопительного плана и факта">
+                <defs><linearGradient id="area" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#24735a" stop-opacity=".20"/><stop offset="1" stop-color="#24735a" stop-opacity="0"/></linearGradient></defs>
+                <g class="grid-lines"><line x1="0" y1="15" x2="760" y2="15"/><line x1="0" y1="63" x2="760" y2="63"/><line x1="0" y1="111" x2="760" y2="111"/><line x1="0" y1="159" x2="760" y2="159"/><line x1="0" y1="207" x2="760" y2="207"/><line x1="0" y1="255" x2="760" y2="255"/></g>
+                <path class="area" d="M0 244 C70 232,90 220,150 210 S240 181,300 163 S390 135,450 116 S550 77,610 61 S700 31,760 18 L760 255 L0 255Z"/>
+                <path class="plan-line" d="M0 240 C70 225,95 207,150 193 S245 156,300 137 S395 99,450 80 S550 49,610 34 S700 17,760 8"/>
+                <path class="fact-line" d="M0 244 C70 232,90 220,150 210 S240 181,300 163 S390 135,450 116 S550 77,610 61 S700 31,760 18"/>
+                <line class="focus-line" x1="505" y1="10" x2="505" y2="255"/><circle class="plan-point" cx="505" cy="61" r="5"/><circle class="fact-point" cx="505" cy="92" r="6"/>
+              </svg>
+              <div class="chart-tooltip"><small>7 сентября</small><span><i class="plan-dot"></i>План <b>1 010 м³</b></span><span><i class="fact-dot"></i>Факт <b>892 м³</b></span><hr><span>Отклонение <b class="negative">−118 м³</b></span></div>
+              <div class="x-labels"><span>1 сен</span><span>3</span><span>5</span><span>7</span><span>9</span><span>11</span><span>13</span><span>15</span></div>
+            </div>
+          </article>
+
+          <article class="panel reports-panel">
+            <div class="panel-head"><div><h2>Отчёты сегодня</h2><p><b>10</b> из 13 подрядчиков</p></div><a href="#reports">Все отчёты →</a></div>
+            <div class="report-ring-row"><div class="ring" style="--value:77"><div><b>77%</b><small>готово</small></div></div><div class="ring-meta"><span><i class="done"></i>Отправлено <b>10</b></span><span><i class="waiting"></i>Ожидается <b>3</b></span></div></div>
+            <div class="report-list">
+              <div><span class="company-logo alpha">А</span><p><strong>ООО «Альфа»</strong><small>Отправлен в 11:28</small></p><span class="status success">Готов</span></div>
+              <div><span class="company-logo beta">Б</span><p><strong>ООО «БетонСтрой»</strong><small>Отправлен в 10:54</small></p><span class="status success">Готов</span></div>
+              <div><span class="company-logo gamma">Г</span><p><strong>СМУ «Гамма»</strong><small>Ещё не отправлен</small></p><button class="remind">Напомнить</button></div>
+            </div>
+          </article>
+        </div>
+
+        <div class="dashboard-grid bottom-grid">
+          <article class="panel contractors-panel">
+            <div class="panel-head"><div><h2>Выполнение по подрядчикам</h2><p>Накопительно на 2 сентября</p></div><button class="filter-button">Все подрядчики⌄</button></div>
+            <div class="table-wrap"><table><thead><tr><th>Подрядчик</th><th>План</th><th>Факт</th><th>Выполнение</th><th>Отклонение</th><th></th></tr></thead><tbody id="contractorRows"></tbody></table></div>
+          </article>
+          <article class="panel attention-panel">
+            <div class="panel-head"><div><h2>Требует внимания</h2><p>Работы с наибольшим отставанием</p></div><span class="alert-count">12</span></div>
+            <div class="issue-list" id="issueList"></div>
+            <button class="secondary full">Показать все отставания <span>→</span></button>
+          </article>
+        </div>
+      </section>
+
+      <section class="page" id="analytics"><div class="section-heading"><div><p class="eyebrow"><span></span> Производственная аналитика</p><h1>План / Факт</h1><p>Контролируйте выполнение графика по работам и подрядчикам.</p></div></div><div id="analyticsContent"></div></section>
+      <section class="page" id="contractors"><div class="section-heading"><div><h1>Подрядчики</h1><p>Организации, работающие на текущем объекте.</p></div><button class="primary">＋ Добавить подрядчика</button></div><div class="cards-grid" id="contractorCards"></div></section>
+      <section class="page" id="reports"><div class="section-heading"><div><h1>Ежедневные отчёты</h1><p>Работы, люди, техника и фотографии за каждый день.</p></div><button class="primary" data-open-report>＋ Создать отчёт</button></div><div class="panel empty-page" id="reportsContent"></div></section>
+      <section class="page" id="resources"><div class="section-heading"><div><h1>Люди и техника</h1><p>Динамика ресурсов на строительной площадке.</p></div></div><div id="resourcesContent"></div></section>
+      <section class="page" id="photos"><div class="section-heading"><div><h1>Фотографии</h1><p>Фотофиксация хода работ по ежедневным отчётам.</p></div></div><div class="photo-grid" id="photoGrid"></div></section>
+      <section class="page" id="milestones"><div class="section-heading"><div><h1>Контрольные вехи</h1><p>Срезы накопительного плана и факта на важные даты.</p></div><button class="primary">＋ Создать веху</button></div><div class="cards-grid" id="milestoneCards"></div></section>
+      <section class="page" id="schedules"><div class="section-heading"><div><h1>Производственные графики</h1><p>Excel-файлы, версии и структурированные данные.</p></div><button class="primary" id="uploadSchedule">⇧ Загрузить график</button></div><div class="panel" id="schedulesContent"></div></section>
+      <section class="page" id="archive"><div class="section-heading"><div><h1>Архив графиков</h1><p>История по месяцам без потери исходных данных.</p></div></div><div class="cards-grid" id="archiveCards"></div></section>
+      <section class="page" id="users"><div class="section-heading"><div><h1>Пользователи</h1><p>Роли и доступы назначаются отдельно для каждого объекта.</p></div><button class="primary">＋ Добавить пользователя</button></div><div class="panel" id="usersContent"></div></section>
+      <section class="page" id="settings"><div class="section-heading"><div><h1>Настройки</h1><p>Параметры объекта, справочники и журнал действий.</p></div></div><div class="cards-grid" id="settingsContent"></div></section>
+    </main>
+  </div>
+
+  <nav class="mobile-nav" aria-label="Мобильная навигация"><a class="active" href="#dashboard" data-page="dashboard">⌂<span>Главная</span></a><a href="#analytics" data-page="analytics">⌁<span>План / Факт</span></a><button data-open-report>＋</button><a href="#reports" data-page="reports">▤<span>Отчёты</span></a><a href="#contractors" data-page="contractors">▦<span>Ещё</span></a></nav>
+
+  <div class="popover project-popover" id="projectPopover" hidden><p>Выберите объект</p><button class="selected" data-project="DEPO · Минск"><i>D</i><span><b>DEPO · Минск</b><small>Активный объект</small></span><em>✓</em></button><button data-project="Динамо · Минск"><i>Д</i><span><b>Динамо · Минск</b><small>78% выполнения</small></span></button><button data-project="ФОК · Гродно"><i>Ф</i><span><b>ФОК · Гродно</b><small>91% выполнения</small></span></button></div>
+
+  <dialog id="reportModal"><form method="dialog" class="modal-card" id="reportForm"><div class="modal-head"><div><small>ЕЖЕДНЕВНЫЙ ОТЧЁТ</small><h2>Отчёт за 2 сентября</h2></div><button value="cancel" aria-label="Закрыть">×</button></div><div class="stepper"><span class="active">1</span><i></i><span>2</span><i></i><span>3</span><i></i><span>4</span></div><div class="form-section"><label>Выполненная работа</label><select><option>Монтаж газопровода Ø400</option><option>Устройство монолитных стен</option><option>Армирование плиты</option></select><div class="field-row"><label>Выполнено сегодня<div class="input-unit"><input type="number" min="0" max="382" value="18" required><span>м</span></div></label><div class="remaining"><small>Доступный остаток</small><b>382 м</b></div></div><button type="button" class="text-button">＋ Добавить ещё работу</button></div><div class="modal-summary"><span>Добавлено работ: <b>1</b></span><span>18 м</span></div><div class="modal-actions"><button value="cancel" class="secondary">Отмена</button><button value="next" class="primary">Продолжить →</button></div></form></dialog>
+
+  <div class="toast" id="toast"><span>✓</span><div><b>Готово</b><small>Изменения сохранены</small></div></div>
   <script src="telegram.js"></script>
+  <script src="app.js"></script>
 </body>
 </html>
