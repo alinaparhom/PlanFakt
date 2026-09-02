@@ -14,6 +14,8 @@
   var toastTimer;
 
   function can(permission) {
+    var authenticatedUser = window.PlanFaktAuth && window.PlanFaktAuth.getUser();
+    if (authenticatedUser && authenticatedUser.role === 'Администратор') return true;
     var role = roles[currentRole];
     return role.pages.indexOf(permission) !== -1 || role.actions.indexOf(permission) !== -1;
   }
@@ -65,5 +67,5 @@
   document.addEventListener('keydown', function (event) { if (event.key === 'Escape') closeSheet(); });
 
   render();
-  window.PlanFaktRoles = { can: can, deny: deny, roles: roles };
+  window.PlanFaktRoles = { can: can, deny: deny, roles: roles, refresh: render };
 })();
