@@ -55,8 +55,18 @@
         if (afterLogin) afterLogin();
         afterLogin = null;
       })
-      .catch(function (requestError) { error.textContent = requestError.message || 'Не удалось войти. Попробуйте ещё раз.'; })
+      .catch(function (requestError) {
+        error.textContent = requestError.message || 'Сервер недоступен. Обновите страницу и попробуйте ещё раз.';
+        document.getElementById('authLogin').setAttribute('aria-invalid', 'true');
+        password.setAttribute('aria-invalid', 'true');
+      })
       .finally(function () { submit.disabled = false; submit.innerHTML = 'Войти <span>→</span>'; });
+  });
+
+  form.addEventListener('input', function () {
+    error.textContent = '';
+    document.getElementById('authLogin').removeAttribute('aria-invalid');
+    password.removeAttribute('aria-invalid');
   });
 
   document.getElementById('passwordToggle').addEventListener('click', function () {

@@ -24,3 +24,4 @@ nav a.is-locked{opacity:.43}nav a.is-locked:after{content:'×';margin-left:auto;
 @media(max-width:680px){.auth-card{padding:34px 20px calc(24px + env(safe-area-inset-bottom))}.auth-card h2{font-size:26px}.auth-card>p{font-size:12px}.admin-head{padding:22px;align-items:flex-start}.admin-head .primary{width:44px;font-size:0;padding:0}.admin-head .primary:first-letter{font-size:18px}.admin-grid{grid-template-columns:1fr}.admin-dialog{align-items:end;padding:0}.admin-form{border-radius:25px 25px 0 0;padding:28px 20px calc(22px + env(safe-area-inset-bottom))}}
 
 .admin-form__error{min-height:20px;color:#d74848;font-size:11px;font-weight:700;text-align:center}.admin-form .primary:disabled{opacity:.65;cursor:wait}
+.auth-field:has(input[aria-invalid="true"]){border-color:#e56b66;background:#fff7f6;box-shadow:0 0 0 4px rgba(210,61,53,.08)}
