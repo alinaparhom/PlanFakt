@@ -7,7 +7,7 @@ const { createTelegramBot } = require('./bot/telegram-bot');
 
 const root = __dirname;
 const port = Number(process.env.PORT) || 3000;
-const publicFiles = new Set(['/index.html', '/telegram.js']);
+const publicFiles = new Set(['/index.html', '/telegram.js', '/app.js', '/styles.css']);
 const contentTypes = {
   '.html': 'text/html; charset=utf-8',
   '.js': 'text/javascript; charset=utf-8',

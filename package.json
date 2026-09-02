@@ -5,7 +5,7 @@
   "description": "Подключение Telegram-бота к сайту и Mini App",
   "scripts": {
     "start": "node server.js",
-    "check": "node --check server.js && node --check bot/telegram-bot.js && node --check telegram.js"
+    "check": "node --check server.js && node --check bot/telegram-bot.js && node --check telegram.js && node --check app.js"
   },
   "engines": {
     "node": ">=18"
