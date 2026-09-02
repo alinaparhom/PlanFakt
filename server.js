@@ -4,10 +4,12 @@ const http = require('node:http');
 const fs = require('node:fs');
 const path = require('node:path');
 const { createTelegramBot } = require('./bot/telegram-bot');
+const { createAuthHandler } = require('./auth');
 
 const root = __dirname;
 const port = Number(process.env.PORT) || 3000;
-const publicFiles = new Set(['/index.html', '/app.js', '/views.js', '/role-access.js', '/telegram.js', '/bmsu4.js', '/styles.css']);
+const publicFiles = new Set(['/index.html', '/app.js', '/auth-modal.js', '/views.js', '/role-access.js', '/telegram.js', '/bmsu4.js', '/styles.css']);
+const handleAuth = createAuthHandler();
 const contentTypes = {
   '.html': 'text/html; charset=utf-8',
   '.js': 'text/javascript; charset=utf-8',
@@ -26,8 +28,9 @@ function loadLocalEnv() {
 
 loadLocalEnv();
 
-const server = http.createServer((request, response) => {
+const server = http.createServer(async (request, response) => {
   const pathname = new URL(request.url, 'http://localhost').pathname;
+  if (pathname.startsWith('/api/auth/') && await handleAuth(request, response, pathname)) return;
   if (pathname === '/health') {
     response.writeHead(200, { 'content-type': 'application/json; charset=utf-8' });
     response.end(JSON.stringify({ ok: true }));
