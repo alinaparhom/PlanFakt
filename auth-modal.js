@@ -15,6 +15,7 @@
     document.querySelector('.profile b').textContent = user.name;
     document.getElementById('profileRole').textContent = user.role;
     document.getElementById('pageTitle').dataset.dashboardTitle = 'Добрый день, ' + user.name + '!';
+    document.querySelectorAll('.admin-navigation').forEach(function (item) { item.hidden = false; });
   }
 
   function open(callback) {

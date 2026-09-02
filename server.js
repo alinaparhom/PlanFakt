@@ -8,7 +8,7 @@ const { createAuthHandler } = require('./auth');
 
 const root = __dirname;
 const port = Number(process.env.PORT) || 3000;
-const publicFiles = new Set(['/index.html', '/app.js', '/auth-modal.js', '/views.js', '/role-access.js', '/telegram.js', '/bmsu4.js', '/styles.css']);
+const publicFiles = new Set(['/index.html', '/app.js', '/auth-modal.js', '/admin-panel.js', '/views.js', '/role-access.js', '/telegram.js', '/bmsu4.js', '/styles.css']);
 const handleAuth = createAuthHandler();
 const contentTypes = {
   '.html': 'text/html; charset=utf-8',
