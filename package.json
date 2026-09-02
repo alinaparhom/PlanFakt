@@ -1,0 +1,14 @@
+{
+  "name": "planfakt-telegram-mini-app",
+  "version": "1.0.0",
+  "private": true,
+  "description": "План/Факт — Telegram-бот и Mini App",
+  "scripts": {
+    "start": "node server.js",
+    "check": "node --check server.js && node --check bot/telegram-bot.js && node --check app.js && node --check telegram.js"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
+
