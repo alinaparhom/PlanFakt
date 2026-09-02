@@ -23,10 +23,10 @@ function createTelegramBot({ token, webAppUrl, logger = console }) {
     const greeting = firstName ? `, ${firstName}` : '';
     return api('sendMessage', {
       chat_id: chatId,
-      text: `Добро пожаловать${greeting}! Откройте «План/Факт», чтобы посмотреть показатели объекта и создать отчёт.`,
+      text: `Добро пожаловать${greeting}! Нажмите кнопку, чтобы открыть приложение.`,
       reply_markup: {
         inline_keyboard: [[{
-          text: 'Открыть План/Факт',
+          text: 'Открыть приложение',
           web_app: { url: webAppUrl }
         }]]
       }
@@ -46,13 +46,13 @@ function createTelegramBot({ token, webAppUrl, logger = console }) {
     await api('setMyCommands', {
       commands: [
         { command: 'start', description: 'Запустить бота' },
-        { command: 'app', description: 'Открыть План/Факт' }
+        { command: 'app', description: 'Открыть приложение' }
       ]
     });
     await api('setChatMenuButton', {
       menu_button: {
         type: 'web_app',
-        text: 'План/Факт',
+        text: 'Открыть',
         web_app: { url: webAppUrl }
       }
     });
@@ -91,4 +91,3 @@ function createTelegramBot({ token, webAppUrl, logger = console }) {
 }
 
 module.exports = { createTelegramBot };
-
