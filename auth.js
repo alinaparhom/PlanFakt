@@ -21,6 +21,35 @@ function initialData() {
   };
 }
 
+function ensureFirstAdmin(data) {
+  let admin = data.users.find((user) => user.login.toLocaleLowerCase('ru') === ADMIN_LOGIN.toLocaleLowerCase('ru'));
+  let changed = false;
+
+  if (!admin) {
+    admin = initialData().users[0];
+    data.users.unshift(admin);
+    changed = true;
+  }
+
+  // У первого администратора всегда остаются заданные владельцем доступ и роль.
+  // Это также чинит уже созданные на сервере файлы данных из старых версий.
+  const required = {
+    name: ADMIN_LOGIN,
+    login: ADMIN_LOGIN,
+    role: 'Администратор',
+    salt: ADMIN_SALT,
+    passwordHash: ADMIN_PASSWORD_HASH,
+    status: 'Активен'
+  };
+  for (const [key, value] of Object.entries(required)) {
+    if (admin[key] !== value) {
+      admin[key] = value;
+      changed = true;
+    }
+  }
+  return changed;
+}
+
 function loadData() {
   try {
     const data = JSON.parse(fs.readFileSync(DATA_FILE, 'utf8'));
@@ -46,6 +75,7 @@ function publicUser(user) {
 function createAuthHandler() {
   const sessions = new Map();
   const data = loadData();
+  if (ensureFirstAdmin(data)) saveData(data);
 
   function getSession(request) {
     const match = (request.headers.cookie || '').match(/(?:^|;\s*)planfakt_session=([^;]+)/);
