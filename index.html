@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#f4f8fb">
+  <title>План / Факт — DEPO</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="ambient ambient--one"></div><div class="ambient ambient--two"></div>
+  <div class="app-shell">
+    <aside class="sidebar glass">
+      <a class="brand" href="#" aria-label="План Факт"><span class="brand__mark"><i></i><i></i><i></i></span><span>План<span>/</span>Факт</span></a>
+      <div class="project-label">Текущий объект</div>
+      <button class="project-switch"><span class="project-icon">D</span><span><b>DEPO</b><small>Минск · Активный</small></span><svg><use href="#chevron"/></svg></button>
+      <nav id="navigation">
+        <p>Управление</p>
+        <a class="active" href="#dashboard" data-page="dashboard"><svg><use href="#grid"/></svg>Дашборд</a>
+        <a href="#plan" data-page="plan"><svg><use href="#chart"/></svg>План / Факт <span class="count">12</span></a>
+        <a href="#contractors" data-page="contractors"><svg><use href="#users"/></svg>Подрядчики</a>
+        <a href="#reports" data-page="reports"><svg><use href="#document"/></svg>Отчёты <span class="dot"></span></a>
+        <p>Аналитика</p>
+        <a href="#resources" data-page="resources"><svg><use href="#helmet"/></svg>Люди и техника</a>
+        <a href="#photos" data-page="photos"><svg><use href="#image"/></svg>Фотографии</a>
+        <a href="#milestones" data-page="milestones"><svg><use href="#flag"/></svg>Контрольные вехи</a>
+        <p>Данные</p>
+        <a href="#schedules" data-page="schedules"><svg><use href="#calendar"/></svg>Графики</a>
+        <a href="#archive" data-page="archive"><svg><use href="#archiveIcon"/></svg>Архив</a>
+      </nav>
+      <div class="sidebar__bottom"><button><svg><use href="#help"/></svg>Помощь</button><div class="profile"><span>АИ</span><div><b>Андрей Иванов</b><small>Руководитель</small></div><button>•••</button></div></div>
+    </aside>
+
+    <main>
+      <header>
+        <button class="mobile-menu" id="menuButton">☰</button>
+        <div><div class="eyebrow">Среда, 2 сентября</div><h1 id="pageTitle">Добрый день, Андрей!</h1></div>
+        <div class="header-actions"><button class="icon-button" aria-label="Поиск"><svg><use href="#search"/></svg></button><button class="icon-button notification" aria-label="Уведомления"><svg><use href="#bell"/></svg></button><button class="primary" id="reportButton"><span>＋</span> Новый отчёт</button></div>
+      </header>
+
+      <section id="dashboard" class="page active-page">
+        <div class="hero glass">
+          <div><span class="status"><i></i> Данные обновлены 5 мин назад</span><h2>Производственный<br>контроль объекта</h2><p>Общая динамика выполнения работ за сентябрь 2026</p><div class="hero-actions"><button class="primary" data-open-plan>Открыть план / факт <b>→</b></button><button class="secondary">Скачать отчёт <svg><use href="#download"/></svg></button></div></div>
+          <div class="hero-visual"><div class="ring"><div><strong>86<span>%</span></strong><small>выполнено</small></div></div><div class="mini-stat"><span class="mini-stat__icon">↗</span><div><small>Темп за 7 дней</small><b>+4,8%</b></div></div></div>
+        </div>
+
+        <div class="section-heading"><div><h2>Ключевые показатели</h2><p>Результаты на сегодня</p></div><div class="period"><button class="active">Сегодня</button><button>3 дня</button><button>7 дней</button><button>Месяц</button></div></div>
+        <div class="stats-grid">
+          <article class="stat-card glass"><div class="stat-card__top"><span class="stat-icon purple"><svg><use href="#target"/></svg></span><span class="trend positive">↗ 3,2%</span></div><small>План на сегодня</small><strong>1 250 <i>ед.</i></strong><div class="bar"><i style="width:100%"></i></div><p>100% целевой объём</p></article>
+          <article class="stat-card glass"><div class="stat-card__top"><span class="stat-icon green"><svg><use href="#check"/></svg></span><span class="trend positive">↗ 5,6%</span></div><small>Факт на сегодня</small><strong>1 080 <i>ед.</i></strong><div class="bar greenbar"><i style="width:86%"></i></div><p>86% от дневного плана</p></article>
+          <article class="stat-card glass"><div class="stat-card__top"><span class="stat-icon orange"><svg><use href="#activity"/></svg></span><span class="trend negative">↓ 1,4%</span></div><small>Отклонение</small><strong class="orange-text">−170 <i>ед.</i></strong><div class="bar orangebar"><i style="width:64%"></i></div><p>Требует внимания</p></article>
+          <article class="stat-card glass"><div class="stat-card__top"><span class="stat-icon blue"><svg><use href="#users"/></svg></span><span class="trend positive">↗ 8 чел.</span></div><small>Людей на объекте</small><strong>148 <i>чел.</i></strong><div class="avatars"><span>А</span><span>Б</span><span>Г</span><span>+5</span><p>8 подрядчиков</p></div></article>
+        </div>
+
+        <div class="dashboard-grid">
+          <article class="chart-card glass"><div class="card-title"><div><h3>Накопительный план / факт</h3><p>Динамика за сентябрь 2026</p></div><button class="select-button">Все подрядчики⌄</button></div><div class="legend"><span><i class="plan-dot"></i>План</span><span><i class="fact-dot"></i>Факт</span></div><div class="chart-wrap"><div class="ylabels"><span>6 000</span><span>4 500</span><span>3 000</span><span>1 500</span><span>0</span></div><svg class="linechart" viewBox="0 0 700 235" preserveAspectRatio="none"><defs><linearGradient id="area" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#665bf4" stop-opacity=".19"/><stop offset="1" stop-color="#665bf4" stop-opacity="0"/></linearGradient></defs><g class="gridlines"><line x1="0" y1="10" x2="700" y2="10"/><line x1="0" y1="65" x2="700" y2="65"/><line x1="0" y1="120" x2="700" y2="120"/><line x1="0" y1="175" x2="700" y2="175"/><line x1="0" y1="230" x2="700" y2="230"/></g><path class="area" d="M0 220 C90 210 120 184 185 175 S280 145 350 130 S450 92 525 70 S630 35 700 18 L700 230 L0 230Z"/><path class="plan-line" d="M0 220 C90 205 120 178 185 165 S280 130 350 112 S450 76 525 55 S630 25 700 10"/><path class="fact-line" d="M0 222 C90 210 120 184 185 175 S280 145 350 130 S450 92 525 70 S630 35 700 18"/><circle cx="525" cy="70" r="5"/></svg><div class="xlabels"><span>1 сен</span><span>5 сен</span><span>10 сен</span><span>15 сен</span><span>20 сен</span><span>25 сен</span><span>30 сен</span></div></div></article>
+          <article class="contractor-card glass"><div class="card-title"><div><h3>Подрядчики</h3><p>Активность сегодня</p></div><button class="more">•••</button></div><div class="contractor-summary"><div><strong>6 <i>/ 8</i></strong><span>отчитались</span></div><div class="small-ring"><b>75%</b></div></div><div class="contractor-list"><div><span class="logo alpha">А</span><div><b>ООО «Альфа»</b><small>17:42 · 42 человека</small></div><em class="done">Отчёт сдан</em></div><div><span class="logo beta">Б</span><div><b>ООО «Бета»</b><small>16:18 · 31 человек</small></div><em class="done">Отчёт сдан</em></div><div><span class="logo gamma">Г</span><div><b>СМУ «Гамма»</b><small>Нет отчёта за сегодня</small></div><em class="waiting">Ожидаем</em></div></div><button class="full-button">Все подрядчики <span>→</span></button></article>
+        </div>
+      </section>
+
+      <section id="genericPage" class="page generic glass"><span class="stat-icon purple"><svg><use href="#chart"/></svg></span><h2 id="genericTitle">План / Факт</h2><p>Раздел подключён к единому контуру данных объекта DEPO.</p><button class="primary" data-open-plan>Вернуться на дашборд</button></section>
+    </main>
+  </div>
+
+  <div class="modal" id="reportModal" aria-hidden="true"><div class="modal-backdrop" data-close></div><div class="modal-card glass"><button class="modal-close" data-close>×</button><span class="status"><i></i> Черновик сохраняется автоматически</span><h2>Новый ежедневный отчёт</h2><p>DEPO · ООО «Альфа» · 2 сентября 2026</p><div class="steps"><span class="active">1</span><i></i><span>2</span><i></i><span>3</span><i></i><span>4</span></div><label>Выполненная работа<select><option>Монтаж газопровода Ø400</option><option>Устройство монолитных стен</option><option>Армирование плиты</option></select></label><div class="input-row"><label>Выполнено сегодня<div class="number-input"><input type="number" value="18" min="0" max="382"><span>м</span></div></label><div class="remaining"><small>Доступный остаток</small><b>382 м</b></div></div><button class="add-work">＋ Добавить ещё работу</button><div class="modal-actions"><button class="secondary" data-close>Отмена</button><button class="primary" id="nextStep">Продолжить →</button></div></div></div>
+
+  <svg class="symbols" aria-hidden="true"><symbol id="grid" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="2"/><rect x="14" y="3" width="7" height="7" rx="2"/><rect x="3" y="14" width="7" height="7" rx="2"/><rect x="14" y="14" width="7" height="7" rx="2"/></symbol><symbol id="chart" viewBox="0 0 24 24"><path d="M4 19V9m6 10V5m6 14v-7m4 7H2"/></symbol><symbol id="users" viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8m13 10v-2a4 4 0 0 0-3-3.87m-2-12a4 4 0 0 1 0 7.75"/></symbol><symbol id="document" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M8 13h8M8 17h6"/></symbol><symbol id="helmet" viewBox="0 0 24 24"><path d="M4 15a8 8 0 0 1 16 0M2 15h20v3H2zM12 7v8"/></symbol><symbol id="image" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/></symbol><symbol id="flag" viewBox="0 0 24 24"><path d="M5 22V4m0 1h12l-2 4 2 4H5"/></symbol><symbol id="calendar" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 10h18"/></symbol><symbol id="archiveIcon" viewBox="0 0 24 24"><path d="M4 7v13h16V7M2 3h20v4H2zM9 12h6"/></symbol><symbol id="help" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M9.5 9a2.6 2.6 0 1 1 3.2 2.53c-.7.2-.7.97-.7 1.47M12 17h.01"/></symbol><symbol id="search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></symbol><symbol id="bell" viewBox="0 0 24 24"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4"/></symbol><symbol id="target" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4"/><path d="M12 3v3m9 6h-3"/></symbol><symbol id="check" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="m8 12 3 3 5-6"/></symbol><symbol id="activity" viewBox="0 0 24 24"><path d="M3 12h4l2-7 4 14 2-7h6"/></symbol><symbol id="download" viewBox="0 0 24 24"><path d="M12 3v12m-4-4 4 4 4-4M4 20h16"/></symbol><symbol id="chevron" viewBox="0 0 24 24"><path d="m9 10 3 3 3-3"/></symbol></svg>
+  <script src="app.js"></script>
+</body>
+</html>
