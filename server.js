@@ -7,7 +7,7 @@ const { createTelegramBot } = require('./bot/telegram-bot');
 
 const root = __dirname;
 const port = Number(process.env.PORT) || 3000;
-const publicFiles = new Set(['/index.html', '/app.js', '/telegram.js', '/bmsu4.js', '/styles.css']);
+const publicFiles = new Set(['/index.html', '/app.js', '/views.js', '/telegram.js', '/bmsu4.js', '/styles.css']);
 const contentTypes = {
   '.html': 'text/html; charset=utf-8',
   '.js': 'text/javascript; charset=utf-8',
@@ -82,4 +82,3 @@ function shutdown() {
 
 process.on('SIGINT', shutdown);
 process.on('SIGTERM', shutdown);
-
