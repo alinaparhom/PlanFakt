@@ -1,6 +1,0 @@
-node_modules/
-data/db.json
-data/uploads/
-data/photos/
-.env
-npm-debug.log*
