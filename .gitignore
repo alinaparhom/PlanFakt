@@ -1,0 +1,6 @@
+data/*.json
+data/legacy/
+data/uploads/*
+!data/uploads/.gitkeep
+.env
+npm-debug.log*

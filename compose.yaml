@@ -1,0 +1,19 @@
+services:
+  plan-fakt:
+    build: .
+    restart: unless-stopped
+    ports:
+      - "4173:4173"
+    environment:
+      PORT: 4173
+      HOST: 0.0.0.0
+      SESSION_SECRET: ${SESSION_SECRET}
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN}
+      WEB_APP_URL: ${WEB_APP_URL}
+      BMSU_SITE_ORIGINS: ${BMSU_SITE_ORIGINS:-https://bimmax.pro}
+      PYTHON_PATH: python3
+    volumes:
+      - plan-fakt-data:/app/data
+
+volumes:
+  plan-fakt-data:

@@ -13,10 +13,10 @@
  *    плиткой, ни закрытой «под замочком». Так раздел остаётся личным для
  *    организации заказчика.
  *
- * 2. Страница карточки bmsu4.php (body.bmsu4-page).
- *    Модуль оживляет шапку (назад, обновить) и даёт точку расширения
- *    window.BMSU4.registerBlock() — через неё в раздел добавляется любой
- *    новый код отдельными блоками, без правок каркаса страницы.
+ * 2. Устаревшая страница карточки bmsu4.php (body.bmsu4-page).
+ *    Она больше не показывается пользователю. Вход выполняется во всплывающем
+ *    окне прямо на главной странице, после чего приложение открывается уже
+ *    с подтверждённой сервером сессией.
  *
  * Настройки доступа читаются всегда свежими: cache: 'no-store', заголовок
  * Cache-Control и метка времени в адресе запроса.
@@ -27,12 +27,16 @@
   var TILE_ID = 'bmsu4-tile';                 // идентификатор карточки в «Доступе к карточкам»
   var TILE_TITLE = 'План/факт';
   var TILE_TEXT = 'Плановые и фактические показатели организации';
-  var TARGET_PAGE = 'bmsu4.php';              // страница, которую открывает карточка
+  var LEGACY_PAGE = 'bmsu4.php';              // прежняя страница-каркас
+  var LOCAL_APP_URL = 'http://127.0.0.1:4173/'; // только для локальной разработки
   var ACCESS_URL = 'lg/dostupcard.json';      // настройки доступа к карточкам
   var STYLE_ID = 'bmsu4-style';
+  var LOGIN_STYLE_ID = 'bmsu4-login-style';
   var REFRESH_MS = 60000;                     // период проверки доступа, как в startmain.js
   var MOUNT_RETRY_MS = 400;                   // пауза между попытками найти сетку плиток
   var MOUNT_RETRY_LIMIT = 30;                 // ~12 секунд ожидания разметки главной страницы
+  var SCRIPT_NODE = document.currentScript;   // currentScript недоступен после загрузки файла
+  var loginModal = null;
 
   // Иконка карточки: оси графика, столбцы «план» и «факт», пунктир целевого уровня.
   var TILE_ICON =
@@ -79,6 +83,220 @@
     }
   }
 
+  /**
+   * Адрес отдельного приложения «План / Факт».
+   *
+   * Для боевого размещения адрес можно передать одним из способов:
+   *   window.PLAN_FACT_APP_URL = 'https://plan-fakt.example.ru/';
+   *   <script src="bmsu4.js" data-app-url="https://..."></script>
+   *   <body data-plan-fakt-url="https://...">
+   *
+   * Если адрес отдельно не задан, сохраняем прежнее поведение карточки:
+   * открываем локально запущенный блок План / Факт.
+   */
+  function applicationUrl() {
+    var configured = typeof window.PLAN_FACT_APP_URL === 'string'
+      ? window.PLAN_FACT_APP_URL.trim()
+      : '';
+    var scriptUrl = SCRIPT_NODE && SCRIPT_NODE.dataset
+      ? String(SCRIPT_NODE.dataset.appUrl || '').trim()
+      : '';
+    var bodyUrl = document.body && document.body.dataset
+      ? String(document.body.dataset.planFaktUrl || '').trim()
+      : '';
+    var target = configured || scriptUrl || bodyUrl;
+
+    if (!target) target = LOCAL_APP_URL;
+
+    try {
+      return new URL(target, window.location.href);
+    } catch (error) {
+      return new URL('/', window.location.href);
+    }
+  }
+
+  /** Переход прямо к форме входа приложения с контекстом исходной страницы. */
+  function openApplication(replaceHistory, ticket) {
+    var target = applicationUrl();
+    var sourceParams = new URLSearchParams(window.location.search || '');
+    var hashParams = new URLSearchParams(String(window.location.hash || '').replace(/^#/, ''));
+    var currentPage = currentPageName();
+    var page = currentPage.toLowerCase() === LEGACY_PAGE
+      ? String(sourceParams.get('page') || '').trim()
+      : currentPage;
+    var organization = currentPage.toLowerCase() === LEGACY_PAGE
+      ? String(sourceParams.get('org') || currentOrganization()).trim()
+      : currentOrganization();
+
+    // Telegram обычно добавляет initData и служебные параметры во fragment
+    // исходного URL. При переходе со старой bmsu4.php fragment браузером на
+    // новый адрес не переносится, поэтому раньше приложение теряло Telegram ID
+    // и показывало обычный web-вход. Переносим только известные параметры; их
+    // подпись всё равно обязательно проверяется сервером перед авторизацией.
+    var telegramParameterNames = [
+      'tgWebAppData',
+      'tgWebAppVersion',
+      'tgWebAppPlatform',
+      'tgWebAppThemeParams',
+      'tgWebAppStartParam'
+    ];
+    var telegramLaunch = false;
+    for (var i = 0; i < telegramParameterNames.length; i += 1) {
+      var parameterName = telegramParameterNames[i];
+      var parameterValue = hashParams.get(parameterName) || sourceParams.get(parameterName);
+      if (!parameterValue) continue;
+      target.searchParams.set(parameterName, parameterValue);
+      if (parameterName === 'tgWebAppData') telegramLaunch = true;
+    }
+
+    target.searchParams.set('source', telegramLaunch ? 'telegram' : 'site');
+    if (ticket) {
+      target.searchParams.set('ticket', ticket);
+    }
+    if (page) {
+      target.searchParams.set('page', page);
+    }
+    if (organization) {
+      target.searchParams.set('org', organization);
+    }
+
+    if (replaceHistory) {
+      window.location.replace(target.toString());
+    } else {
+      window.location.assign(target.toString());
+    }
+  }
+
+  function element(tag, className, text) {
+    var node = document.createElement(tag);
+    if (className) node.className = className;
+    if (text) node.textContent = text;
+    return node;
+  }
+
+  function ensureLoginStyles() {
+    if (document.getElementById(LOGIN_STYLE_ID)) return;
+    var style = document.createElement('style');
+    style.id = LOGIN_STYLE_ID;
+    style.textContent =
+      '.pf-login-overlay{position:fixed;z-index:2147483000;inset:0;display:grid;place-items:center;padding:20px;background:rgba(13,29,55,.82);backdrop-filter:blur(7px);font-family:Inter,"Segoe UI",Arial,sans-serif}' +
+      '.pf-login-card{position:relative;width:min(390px,100%);padding:30px 28px 26px;border:1px solid rgba(226,232,240,.9);border-radius:17px;background:#fff;box-shadow:0 28px 80px rgba(2,12,32,.34);color:#172235}' +
+      '.pf-login-close{position:absolute;top:11px;right:11px;width:34px;height:34px;border:1px solid #e3e9f1;border-radius:9px;background:#fff;color:#68778a;font-size:22px;line-height:1;cursor:pointer}' +
+      '.pf-login-logo{display:grid;place-items:center;width:44px;height:44px;margin:0 auto 15px;border-radius:12px;background:#17243f;color:#fff;font-size:12px;font-weight:900;letter-spacing:.03em}' +
+      '.pf-login-title{margin:0;text-align:center;font-size:24px;font-weight:800;letter-spacing:-.025em}' +
+      '.pf-login-subtitle{margin:7px 0 22px;text-align:center;color:#8591a3;font-size:12px;line-height:1.45}' +
+      '.pf-login-form{display:flex;flex-direction:column;gap:14px}' +
+      '.pf-login-label{display:flex;flex-direction:column;gap:7px;color:#26354a;font-size:12px;font-weight:750}' +
+      '.pf-login-field{position:relative}' +
+      '.pf-login-field input{box-sizing:border-box;width:100%;height:47px;padding:0 43px 0 14px;border:1px solid #d9e1ec;border-radius:10px;outline:0;background:#fff;color:#172235;font:14px Inter,"Segoe UI",Arial,sans-serif}' +
+      '.pf-login-field input:focus{border-color:#4562f4;box-shadow:0 0 0 3px rgba(69,98,244,.13)}' +
+      '.pf-login-eye{position:absolute;right:7px;top:6px;width:35px;height:35px;border:0;background:transparent;color:#8b98aa;cursor:pointer}' +
+      '.pf-login-submit{height:46px;margin-top:2px;border:0;border-radius:10px;background:#4562f4;color:#fff;font-size:13px;font-weight:800;cursor:pointer;box-shadow:0 10px 24px rgba(69,98,244,.24)}' +
+      '.pf-login-submit:disabled{cursor:wait;opacity:.65}' +
+      '.pf-login-error{min-height:17px;margin:0;text-align:center;color:#c13d35;font-size:11px;font-weight:650}' +
+      '@media(max-width:480px){.pf-login-overlay{padding:14px}.pf-login-card{padding:28px 20px 22px}}';
+    document.head.appendChild(style);
+  }
+
+  function closeLoginModal() {
+    if (!loginModal) return;
+    document.removeEventListener('keydown', loginModal.keyHandler);
+    if (loginModal.overlay.parentNode) loginModal.overlay.parentNode.removeChild(loginModal.overlay);
+    loginModal = null;
+  }
+
+  function loginEndpoint() {
+    var base = applicationUrl();
+    base.search = '';
+    base.hash = '';
+    if (base.pathname.slice(-1) !== '/') base.pathname += '/';
+    return new URL('api/auth/launch', base.toString()).toString();
+  }
+
+  function showLoginModal() {
+    if (loginModal) {
+      loginModal.login.focus();
+      return;
+    }
+    ensureLoginStyles();
+
+    var overlay = element('div', 'pf-login-overlay');
+    overlay.setAttribute('role', 'dialog');
+    overlay.setAttribute('aria-modal', 'true');
+    overlay.setAttribute('aria-labelledby', 'pf-login-title');
+    var card = element('section', 'pf-login-card');
+    var close = element('button', 'pf-login-close', '×');
+    close.type = 'button';
+    close.setAttribute('aria-label', 'Закрыть окно входа');
+    var logo = element('div', 'pf-login-logo', 'П/Ф');
+    var title = element('h2', 'pf-login-title', 'План / Факт');
+    title.id = 'pf-login-title';
+    var subtitle = element('p', 'pf-login-subtitle', 'Введите логин и пароль для входа в блок');
+    var form = element('form', 'pf-login-form');
+    var loginLabel = element('label', 'pf-login-label', 'Логин');
+    var loginField = element('div', 'pf-login-field');
+    var login = element('input');
+    login.name = 'login'; login.autocomplete = 'username'; login.required = true;
+    login.placeholder = 'Ваш логин';
+    var passwordLabel = element('label', 'pf-login-label', 'Пароль');
+    var passwordField = element('div', 'pf-login-field');
+    var password = element('input');
+    password.name = 'password'; password.type = 'password'; password.autocomplete = 'current-password'; password.required = true;
+    password.placeholder = 'Введите пароль';
+    var eye = element('button', 'pf-login-eye', '◉');
+    eye.type = 'button'; eye.setAttribute('aria-label', 'Показать пароль');
+    var submit = element('button', 'pf-login-submit', 'Войти');
+    submit.type = 'submit';
+    var error = element('p', 'pf-login-error');
+    error.setAttribute('role', 'alert');
+
+    loginField.appendChild(login); loginLabel.appendChild(loginField);
+    passwordField.appendChild(password); passwordField.appendChild(eye); passwordLabel.appendChild(passwordField);
+    form.appendChild(loginLabel); form.appendChild(passwordLabel); form.appendChild(submit); form.appendChild(error);
+    card.appendChild(close); card.appendChild(logo); card.appendChild(title); card.appendChild(subtitle); card.appendChild(form);
+    overlay.appendChild(card); document.body.appendChild(overlay);
+
+    var keyHandler = function (event) { if (event.key === 'Escape' || event.keyCode === 27) closeLoginModal(); };
+    loginModal = { overlay: overlay, login: login, password: password, submit: submit, error: error, keyHandler: keyHandler };
+    document.addEventListener('keydown', keyHandler);
+    close.addEventListener('click', closeLoginModal);
+    overlay.addEventListener('click', function (event) { if (event.target === overlay) closeLoginModal(); });
+    eye.addEventListener('click', function () {
+      password.type = password.type === 'password' ? 'text' : 'password';
+      eye.setAttribute('aria-label', password.type === 'password' ? 'Показать пароль' : 'Скрыть пароль');
+    });
+    form.addEventListener('submit', function (event) {
+      event.preventDefault();
+      error.textContent = '';
+      submit.disabled = true;
+      submit.textContent = 'Проверяем…';
+      fetch(loginEndpoint(), {
+        method: 'POST',
+        mode: 'cors',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ login: login.value, password: password.value })
+      })
+        .then(function (response) {
+          return response.json().catch(function () { return {}; }).then(function (data) {
+            if (!response.ok) throw new Error(data.error || 'Не удалось выполнить вход');
+            return data;
+          });
+        })
+        .then(function (data) {
+          if (!data.ticket) throw new Error('Сервер не подтвердил вход');
+          openApplication(false, data.ticket);
+        })
+        .catch(function (requestError) {
+          error.textContent = requestError && requestError.message === 'Failed to fetch'
+            ? 'Сервис План / Факт недоступен'
+            : (requestError.message || 'Не удалось выполнить вход');
+          submit.disabled = false;
+          submit.textContent = 'Войти';
+        });
+    });
+    setTimeout(function () { login.focus(); }, 0);
+  }
+
   /* ======================================================================
    *  Режим 1. Плитка «План/факт» на главной странице организации
    * ==================================================================== */
@@ -109,19 +327,12 @@
         || document.querySelector('.su21-interface__tiles');
     }
 
-    /** Переход на страницу карточки с сохранением контекста организации. */
+    /** Показываем вход поверх текущей страницы, не покидая сайт. */
     function openCard(event) {
       if (event && typeof event.preventDefault === 'function') {
         event.preventDefault();
       }
-      var params = 'page=' + encodeURIComponent(currentPageName());
-      var organization = currentOrganization();
-      if (organization) {
-        params += '&org=' + encodeURIComponent(organization);
-      }
-      // Метка времени — страница карточки всегда открывается свежей, без кеша.
-      params += '&ts=' + Date.now();
-      window.location.assign(TARGET_PAGE + '?' + params);
+      showLoginModal();
     }
 
     /** Разметка плитки в стиле остальных разделов главной страницы. */
@@ -328,172 +539,10 @@
    * ==================================================================== */
 
   function initPageMode() {
-    var body = document.body;
-    var blocksHost = document.getElementById('bmsu4-blocks');
-    var emptyNode = document.getElementById('bmsu4-empty');
-    var toastNode = document.getElementById('bmsu4-toast');
-    var backButton = document.getElementById('bmsu4-back');
-    var reloadButton = document.getElementById('bmsu4-reload');
-    var toastTimer = null;
-    var blocks = {};
-
-    var context = {
-      page: String(body.dataset.page || ''),
-      org: String(body.dataset.org || ''),
-      returnUrl: String(body.dataset.return || 'index.html'),
-      title: String(body.dataset.title || TILE_TITLE)
-    };
-
-    /** Адрес текущей страницы со свежей меткой времени — открывается без кеша. */
-    function freshUrl() {
-      var params = [];
-      if (context.page) {
-        params.push('page=' + encodeURIComponent(context.page));
-      }
-      if (context.org) {
-        params.push('org=' + encodeURIComponent(context.org));
-      }
-      params.push('ts=' + Date.now());
-      return TARGET_PAGE + '?' + params.join('&');
-    }
-
-    /** Короткое сообщение внизу экрана. */
-    function toast(message) {
-      var text = typeof message === 'string' ? message.trim() : '';
-      if (!toastNode || !text) {
-        return;
-      }
-      toastNode.textContent = text;
-      toastNode.classList.add('is-visible');
-      if (toastTimer) {
-        clearTimeout(toastTimer);
-      }
-      toastTimer = setTimeout(function () {
-        toastNode.classList.remove('is-visible');
-      }, 3000);
-    }
-
-    /** Показываем заглушку «пока пусто», пока в разделе нет ни одного блока. */
-    function updateEmptyState() {
-      if (!emptyNode) {
-        return;
-      }
-      var hasBlocks = Object.keys(blocks).length > 0;
-      emptyNode.classList.toggle('is-hidden', hasBlocks);
-    }
-
-    /**
-     * Добавляет блок в раздел.
-     * block = { id, title, subtitle, icon (SVG-разметка), render(container) }
-     * Повторная регистрация с тем же id заменяет прежний блок.
-     */
-    function registerBlock(block) {
-      if (!blocksHost || !block || typeof block !== 'object') {
-        return null;
-      }
-      var id = String(block.id || '').trim();
-      if (!id) {
-        return null;
-      }
-
-      removeBlock(id);
-
-      var panel = document.createElement('section');
-      panel.className = 'bmsu4-panel';
-      panel.dataset.blockId = id;
-
-      var title = String(block.title || '').trim();
-      var subtitle = String(block.subtitle || '').trim();
-      if (title || subtitle || block.icon) {
-        var head = document.createElement('div');
-        head.className = 'bmsu4-panel__head';
-
-        if (block.icon) {
-          var icon = document.createElement('span');
-          icon.className = 'bmsu4-panel__icon';
-          icon.setAttribute('aria-hidden', 'true');
-          icon.innerHTML = String(block.icon);
-          head.appendChild(icon);
-        }
-
-        var titles = document.createElement('div');
-        titles.className = 'bmsu4-panel__titles';
-        if (title) {
-          var titleNode = document.createElement('h2');
-          titleNode.className = 'bmsu4-panel__title';
-          titleNode.textContent = title;
-          titles.appendChild(titleNode);
-        }
-        if (subtitle) {
-          var subtitleNode = document.createElement('p');
-          subtitleNode.className = 'bmsu4-panel__subtitle';
-          subtitleNode.textContent = subtitle;
-          titles.appendChild(subtitleNode);
-        }
-        head.appendChild(titles);
-        panel.appendChild(head);
-      }
-
-      var content = document.createElement('div');
-      content.className = 'bmsu4-panel__body';
-      panel.appendChild(content);
-
-      blocksHost.appendChild(panel);
-      blocks[id] = panel;
-      updateEmptyState();
-
-      if (typeof block.render === 'function') {
-        try {
-          block.render(content, context);
-        } catch (error) {
-          content.textContent = 'Блок не удалось построить.';
-        }
-      }
-
-      return content;
-    }
-
-    /** Убирает блок раздела по идентификатору. */
-    function removeBlock(id) {
-      var key = String(id || '').trim();
-      var panel = blocks[key];
-      if (!panel) {
-        return false;
-      }
-      if (panel.parentNode) {
-        panel.parentNode.removeChild(panel);
-      }
-      delete blocks[key];
-      updateEmptyState();
-      return true;
-    }
-
-    if (backButton) {
-      backButton.addEventListener('click', function () {
-        window.location.assign(context.returnUrl || 'index.html');
-      });
-    }
-
-    if (reloadButton) {
-      reloadButton.addEventListener('click', function () {
-        window.location.replace(freshUrl());
-      });
-    }
-
-    updateEmptyState();
-
-    // Точка расширения: новый код раздела добавляется отдельными блоками.
-    window.BMSU4 = {
-      context: context,
-      registerBlock: registerBlock,
-      removeBlock: removeBlock,
-      toast: toast,
-      reload: function () {
-        window.location.replace(freshUrl());
-      }
-    };
-
-    document.dispatchEvent(new CustomEvent('bmsu4:ready', { detail: context }));
+    // Старый экран «Здесь пока нет блоков» больше не участвует в сценарии.
+    // replace() также не оставляет его в истории браузера по кнопке «Назад».
+    document.body.style.display = 'none';
+    openApplication(true);
   }
 
   /* ======================================================================
@@ -501,7 +550,9 @@
    * ==================================================================== */
 
   function start() {
-    if (document.body && document.body.classList.contains('bmsu4-page')) {
+    var isLegacyPage = currentPageName().toLowerCase() === LEGACY_PAGE;
+    var hasLegacyClass = document.body && document.body.classList.contains('bmsu4-page');
+    if (isLegacyPage || hasLegacyClass) {
       initPageMode();
       return;
     }
