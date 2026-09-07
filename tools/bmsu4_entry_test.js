@@ -223,8 +223,42 @@ async function runPublicFallback() {
   });
   await new Promise(resolve => setImmediate(resolve));
   grid.children[0].listeners.click({ preventDefault() {} });
-  assert.ok(body.findByClass('pf-login-overlay'), 'На публичной странице должно открыться окно входа');
-  assert.equal(location.state.assigned, '', 'Переход не должен происходить до входа');
+  const overlay = body.findByClass('pf-login-overlay');
+  assert.ok(overlay, 'Публичная страница должна объяснить, что адрес приложения не задан');
+  assert.ok(overlay.find(node => node.textContent === 'Раздел не подключён'), 'Нужно окно «Раздел не подключён»');
+  assert.ok(!overlay.findByClass('pf-login-form'), 'Форма входа без адреса приложения бесполезна');
+  assert.equal(location.state.assigned, '', 'Переход на 127.0.0.1 с публичной страницы недопустим');
+  assert.equal(location.state.replaced, '', 'Переход на 127.0.0.1 с публичной страницы недопустим');
+}
+
+/**
+ * Telegram открыл портал, а адрес приложения на странице не задан.
+ * Раньше пользователь уезжал на собственный 127.0.0.1 и видел пустой экран.
+ */
+function runTelegramWithoutAppUrl() {
+  const location = locationFor('/');
+  const signedInitData = 'query_id=test&user=%7B%22id%22%3A16370894%7D&auth_date=1770000000&hash=signed';
+  location.value.hash = `#tgWebAppData=${encodeURIComponent(signedInitData)}`;
+  location.value.href += location.value.hash;
+  const body = new Element('body');
+  body.dataset = {};
+  body.classList = { contains: () => false };
+  const document = {
+    currentScript: { dataset: {} },
+    readyState: 'complete',
+    body,
+    head: new Element('head'),
+    getElementById: () => null,
+    createElement: tag => new Element(tag)
+  };
+
+  vm.runInNewContext(source, {
+    window: { location: location.value }, document, URL, URLSearchParams
+  });
+
+  assert.equal(location.state.replaced, '', 'Без адреса приложения переход выполнять нельзя');
+  assert.ok(body.findByClass('pf-login-overlay'), 'Telegram должен увидеть причину, а не пустой экран');
+  assert.notEqual(body.style.display, 'none', 'Сообщение должно быть видно');
 }
 
 (async () => {
@@ -236,6 +270,7 @@ async function runPublicFallback() {
   await runTileRedirect();
   runLocalFallback();
   await runPublicFallback();
+  runTelegramWithoutAppUrl();
   console.log('Модальный вход План/Факт и переход по одноразовому билету работают.');
 })().catch(error => {
   console.error(error);

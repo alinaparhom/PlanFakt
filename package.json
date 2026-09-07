@@ -5,9 +5,10 @@
   "description": "Telegram Mini App and web application for construction plan/fact reporting",
   "scripts": {
     "start": "node server.js",
-    "check": "node --check server.js && node --check public/app.js && node --check bmsu4.js && node --check telegram-web-app.js && node --check tools/configure_telegram.js && node tools/schedule_sync_test.js && node tools/bmsu4_entry_test.js && node tools/telegram_config_test.js && node tools/telegram_auth_flow_test.js && node tools/responsible_report_test.js",
+    "check": "node --check server.js && node --check public/app.js && node --check bmsu4.js && node --check telegram-web-app.js && node --check telegram-bot.js && node --check tools/configure_telegram.js && node --check tools/telegram_doctor.js && node tools/schedule_sync_test.js && node tools/bmsu4_entry_test.js && node tools/telegram_config_test.js && node tools/telegram_doctor_test.js && node tools/telegram_bot_test.js && node tools/telegram_auth_flow_test.js && node tools/responsible_report_test.js",
     "smoke": "node tools/smoke_test.js",
-    "telegram:configure": "node tools/configure_telegram.js"
+    "telegram:configure": "node tools/configure_telegram.js",
+    "telegram:doctor": "node tools/telegram_doctor.js"
   },
   "engines": {
     "node": ">=18"

@@ -24,19 +24,32 @@ function write(name, value) {
   fs.writeFileSync(path.join(dataDir, name), JSON.stringify(value, null, 2));
 }
 
-const projects = read('projects.json');
-const users = read('users.json');
-const organizations = read('organizations.json');
 const customer = { fullName: 'ОАО «Заказчик № 2»', portalName: 'customer-2', portalPage: 'customer-2.php' };
-const secondProject = { id: 'second', name: 'Второй объект', shortName: 'Объект 2', status: 'active', timezone: 'Europe/Moscow', customerOrganization: customer, contractorIds: ['contractor-2'] };
-projects.push(secondProject);
-organizations.push({ id: 'contractor-2', fullName: 'ООО «Подрядчик № 2»', shortName: 'Подрядчик 2', status: 'active', projectIds: ['second'], reportSettings: { planFact: true, workforce: false, machinery: false } });
-users[0].assignments.push({ projectId: 'second', role: 'admin', organizationIds: [], customerOrganization: customer });
-users.push({ id: 'u_single', name: 'Пользователь одного объекта', login: 'single-user', passwordHash: users[0].passwordHash, telegramId: '777777777', status: 'active', organization: users[0].organization, assignments: [users[0].assignments[0]] });
-users.push({ id: 'u_link', name: 'Новый пользователь', login: 'link-user', passwordHash: users[0].passwordHash, status: 'active', assignments: [users[0].assignments[0]] });
-write('projects.json', projects);
-write('organizations.json', organizations);
-write('users.json', users);
+let projects;
+let users;
+let organizations;
+
+/** Готовим тестовые данные поверх стартового набора сервера. */
+function prepareStore() {
+  projects = read('projects.json');
+  users = read('users.json');
+  organizations = read('organizations.json');
+  // Стартовый набор идёт без подрядчиков: добавляем своего для объекта «main».
+  if (!organizations.some(item => Array.isArray(item.projectIds) && item.projectIds.includes('main'))) {
+    organizations.push({ id: 'contractor-main', fullName: 'ООО «Подрядчик № 1»', shortName: 'Подрядчик 1', status: 'active', projectIds: ['main'], reportSettings: { planFact: true, workforce: true, machinery: true } });
+    const mainProject = projects.find(item => item.id === 'main');
+    if (mainProject && Array.isArray(mainProject.contractorIds) && !mainProject.contractorIds.includes('contractor-main')) mainProject.contractorIds.push('contractor-main');
+  }
+  const secondProject = { id: 'second', name: 'Второй объект', shortName: 'Объект 2', status: 'active', timezone: 'Europe/Moscow', customerOrganization: customer, contractorIds: ['contractor-2'] };
+  projects.push(secondProject);
+  organizations.push({ id: 'contractor-2', fullName: 'ООО «Подрядчик № 2»', shortName: 'Подрядчик 2', status: 'active', projectIds: ['second'], reportSettings: { planFact: true, workforce: false, machinery: false } });
+  users[0].assignments.push({ projectId: 'second', role: 'admin', organizationIds: [], customerOrganization: customer });
+  users.push({ id: 'u_single', name: 'Пользователь одного объекта', login: 'single-user', passwordHash: users[0].passwordHash, telegramId: '777777777', status: 'active', organization: users[0].organization, assignments: [users[0].assignments[0]] });
+  users.push({ id: 'u_link', name: 'Новый пользователь', login: 'link-user', passwordHash: users[0].passwordHash, status: 'active', assignments: [users[0].assignments[0]] });
+  write('projects.json', projects);
+  write('organizations.json', organizations);
+  write('users.json', users);
+}
 
 function initData(userId, startParam = '') {
   const params = new URLSearchParams({ auth_date: String(Math.floor(Date.now() / 1000)), query_id: `test-${userId}`, user: JSON.stringify({ id: userId, first_name: 'Test' }) });
@@ -64,12 +77,38 @@ async function waitForServer(child) {
   throw new Error('Тестовый сервер не запустился');
 }
 
-(async () => {
-  const child = spawn(process.execPath, [path.join(root, 'server.js')], {
+function spawnServer() {
+  return spawn(process.execPath, [path.join(root, 'server.js')], {
     cwd: root,
     env: { ...process.env, PORT: String(port), HOST: '127.0.0.1', PLAN_FACT_DATA_DIR: dataDir, TELEGRAM_BOT_TOKEN: testToken, TELEGRAM_BOT_DISABLED: '1', SESSION_SECRET: 'telegram-flow-test-session-secret' },
     stdio: ['ignore', 'pipe', 'pipe']
   });
+}
+
+async function stopServer(child) {
+  if (child.exitCode === null) child.kill();
+  await new Promise(resolve => child.exitCode === null ? child.once('exit', resolve) : resolve());
+}
+
+/**
+ * В свежем клоне каталог data пуст: файлы хранилища не версионируются.
+ * Первый короткий запуск сервера создаёт стартовый набор, и тест
+ * работает одинаково на машине разработчика и в чистой копии репозитория.
+ */
+async function ensureStoreFiles() {
+  if (fs.existsSync(path.join(dataDir, 'projects.json'))) return;
+  const child = spawnServer();
+  try {
+    await waitForServer(child);
+  } finally {
+    await stopServer(child);
+  }
+}
+
+(async () => {
+  await ensureStoreFiles();
+  prepareStore();
+  const child = spawnServer();
   let diagnostics = '';
   child.stdout.on('data', chunk => { diagnostics += chunk; });
   child.stderr.on('data', chunk => { diagnostics += chunk; });
@@ -141,8 +180,7 @@ async function waitForServer(child) {
     if (diagnostics.trim()) console.error(diagnostics.trim());
     throw error;
   } finally {
-    if (child.exitCode === null) child.kill();
-    await new Promise(resolve => child.exitCode === null ? child.once('exit', resolve) : resolve());
+    await stopServer(child);
     fs.rmSync(testRoot, { recursive: true, force: true });
     try { fs.rmdirSync(testParent); } catch {}
   }

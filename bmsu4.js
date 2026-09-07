@@ -32,6 +32,7 @@
   var ACCESS_URL = 'lg/dostupcard.json';      // настройки доступа к карточкам
   var STYLE_ID = 'bmsu4-style';
   var LOGIN_STYLE_ID = 'bmsu4-login-style';
+  var NOTICE_ID = 'bmsu4-setup-notice';    // окно «адрес приложения не настроен»
   var REFRESH_MS = 60000;                     // период проверки доступа, как в startmain.js
   var MOUNT_RETRY_MS = 400;                   // пауза между попытками найти сетку плиток
   var MOUNT_RETRY_LIMIT = 30;                 // ~12 секунд ожидания разметки главной страницы
@@ -105,6 +106,12 @@
    * Если адрес отдельно не задан, сохраняем прежнее поведение карточки:
    * открываем локально запущенный блок План / Факт.
    */
+  /** Страница открыта на локальном стенде разработчика. */
+  function isLocalPage() {
+    var host = String((window.location && window.location.hostname) || '').toLowerCase();
+    return host === 'localhost' || host === '127.0.0.1' || host === '::1' || host === '[::1]';
+  }
+
   function applicationUrl() {
     var configured = typeof window.PLAN_FACT_APP_URL === 'string'
       ? window.PLAN_FACT_APP_URL.trim()
@@ -117,18 +124,28 @@
       : '';
     var target = configured || scriptUrl || bodyUrl;
 
-    if (!target) target = LOCAL_APP_URL;
+    // Публичная страница без настроенного адреса раньше отправляла телефон
+    // пользователя на его собственный 127.0.0.1: в Telegram открывался пустой
+    // экран без объяснения. Локальный адрес остаётся только для стенда.
+    if (!target) {
+      if (!isLocalPage()) return null;
+      target = LOCAL_APP_URL;
+    }
 
     try {
       return new URL(target, window.location.href);
     } catch (error) {
-      return new URL('/', window.location.href);
+      return null;
     }
   }
 
   /** Переход прямо к форме входа приложения с контекстом исходной страницы. */
   function openApplication(replaceHistory, ticket) {
     var target = applicationUrl();
+    if (!target) {
+      showSetupNotice();
+      return;
+    }
     var sourceParams = new URLSearchParams(window.location.search || '');
     var hashParams = new URLSearchParams(String(window.location.hash || '').replace(/^#/, ''));
     var currentPage = currentPageName();
@@ -218,13 +235,53 @@
 
   function loginEndpoint() {
     var base = applicationUrl();
+    if (!base) throw new Error('Адрес приложения «План / Факт» не настроен');
     base.search = '';
     base.hash = '';
     if (base.pathname.slice(-1) !== '/') base.pathname += '/';
     return new URL('api/auth/launch', base.toString()).toString();
   }
 
+  /**
+   * Портал не знает публичный адрес приложения «План / Факт».
+   * Показываем причину прямо на экране: пустую страницу в Telegram
+   * пользователь объяснить не может, а администратор — исправляет за минуту.
+   */
+  function showSetupNotice() {
+    try {
+      if (document.getElementById(NOTICE_ID)) return;
+      ensureLoginStyles();
+      document.body.style.display = '';
+
+      var overlay = element('div', 'pf-login-overlay');
+      overlay.id = NOTICE_ID;
+      overlay.setAttribute('role', 'dialog');
+      overlay.setAttribute('aria-modal', 'true');
+      var card = element('section', 'pf-login-card');
+      var logo = element('div', 'pf-login-logo', 'П/Ф');
+      var title = element('h2', 'pf-login-title', 'Раздел не подключён');
+      var subtitle = element(
+        'p',
+        'pf-login-subtitle',
+        'Адрес приложения «План / Факт» не задан на портале. Администратор указывает его строкой ' +
+        'window.PLAN_FACT_APP_URL = \'https://адрес-приложения/\' перед подключением bmsu4.js.'
+      );
+      card.appendChild(logo);
+      card.appendChild(title);
+      card.appendChild(subtitle);
+      overlay.appendChild(card);
+      document.body.appendChild(overlay);
+    } catch (error) {
+      // Разметки нет (например, при серверном рендере) — остаётся лог.
+      if (window.console && console.error) console.error('План / Факт: адрес приложения не настроен');
+    }
+  }
+
   function showLoginModal() {
+    if (!applicationUrl()) {
+      showSetupNotice();
+      return;
+    }
     if (loginModal) {
       loginModal.login.focus();
       return;
