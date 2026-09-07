@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#10233f">
+  <meta name="description" content="План / Факт — ежедневный производственный контроль">
+  <title>План / Факт</title>
+  <link rel="stylesheet" href="/styles.css?v=11">
+  <script id="telegram-web-app-sdk" async src="https://telegram.org/js/telegram-web-app.js"></script>
+</head>
+<body>
+  <div id="login-screen" class="login-screen">
+    <section class="login-panel">
+      <div class="login-card">
+        <div class="mobile-brand"><div class="login-monogram">П/Ф</div></div>
+        <div id="auth-check" class="auth-check" role="status" aria-live="polite">
+          <div id="auth-check-spinner" class="auth-spinner" aria-hidden="true"></div>
+          <p class="eyebrow">Безопасный вход</p>
+          <h2 id="auth-check-title">Определяем способ входа</h2>
+          <p id="auth-check-text" class="muted">Подождите несколько секунд</p>
+          <button id="auth-retry" class="button button--secondary hidden" type="button">Повторить проверку</button>
+        </div>
+        <div id="project-choice" class="hidden">
+          <p class="eyebrow">Telegram вход</p>
+          <h2>Выберите объект</h2>
+          <p class="muted">Вам доступно несколько объектов. Выберите, какой открыть.</p>
+          <div id="project-choice-list" class="project-choice-list"></div>
+          <p id="project-choice-error" class="form-error" role="alert"></p>
+        </div>
+        <div id="auth-form" class="hidden">
+          <p class="eyebrow">Вход в систему</p>
+          <h2 id="login-title">План / Факт</h2>
+          <p id="login-subtitle" class="muted">Введите логин и пароль для входа в блок</p>
+          <div id="telegram-link-note" class="telegram-link-note hidden"><span>↗</span><div><b>Telegram ID ещё не привязан</b><p>Войдите в существующий аккаунт и подтвердите привязку текущего Telegram ID.</p></div></div>
+          <form id="login-form" class="form-stack">
+          <label>Логин<input id="login" name="login" autocomplete="username" placeholder="Ваш логин" required></label>
+          <label>Пароль<div class="password-field"><input id="password" name="password" type="password" autocomplete="current-password" placeholder="••••••••" required><button type="button" id="toggle-password" aria-label="Показать пароль">◉</button></div></label>
+          <label id="telegram-link-confirm-wrap" class="link-confirm hidden"><input id="telegram-link-confirm" type="checkbox"><span>Привязать Telegram ID <b id="telegram-link-id"></b> к этому аккаунту</span></label>
+          <p id="login-error" class="form-error" role="alert"></p>
+          <button class="button button--primary button--wide" type="submit"><span id="login-submit-text">Войти</span><span>→</span></button>
+          </form>
+        </div>
+      </div>
+      <p class="login-foot">Защищённое соединение · Версия 1.0</p>
+    </section>
+  </div>
+
+  <div id="app" class="app hidden">
+    <aside class="sidebar">
+      <div class="sidebar-brand"><div class="brand-monogram">ПФ</div><div><b>План / Факт</b><small>Производственный контроль</small></div></div>
+      <button class="user-menu sidebar-user" id="user-menu"><span id="user-avatar" class="avatar">АП</span><span class="user-copy"><b id="user-name">—</b><small id="user-role">—</small></span><span class="sidebar-chevron">›</span></button>
+      <p class="sidebar-context-label">Объект</p>
+      <button id="project-switcher" class="project-switcher sidebar-project"><span class="project-symbol">⌂</span><span><small>Текущий объект</small><b id="project-name">—</b></span><span>⌄</span></button>
+      <nav id="main-nav" class="main-nav" aria-label="Основная навигация"></nav>
+      <div class="sidebar-foot"><b>BIMMAX</b></div>
+    </aside>
+    <div class="workspace">
+      <header class="topbar">
+        <button class="icon-button mobile-menu" id="mobile-menu" aria-label="Открыть меню">☰</button>
+        <b class="topbar-title">«План / Факт»</b>
+        <div class="topbar-spacer"></div>
+        <button class="icon-button" id="notifications" aria-label="Уведомления">♢<i></i></button>
+        <button class="icon-button topbar-close" data-route="planfact" aria-label="Закрыть раздел">×</button>
+      </header>
+      <main id="content" class="content" tabindex="-1"></main>
+    </div>
+    <nav id="mobile-nav" class="mobile-nav"></nav>
+  </div>
+
+  <div id="overlay" class="overlay hidden"></div>
+  <div id="project-popover" class="popover hidden"></div>
+  <div id="user-popover" class="popover user-popover hidden">
+    <button data-action="profile">Профиль</button>
+    <button data-action="logout">Сменить пользователя</button>
+  </div>
+  <div id="modal" class="modal-wrap hidden" role="dialog" aria-modal="true"><div class="modal"><button class="modal-close" data-close-modal aria-label="Закрыть">×</button><div id="modal-content"></div></div></div>
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  <script src="/app.js?v=17"></script>
+</body>
+</html>

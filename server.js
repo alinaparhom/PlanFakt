@@ -41,6 +41,7 @@ const DATA_FILES = {
 const PORT = Number(process.env.PORT || 4173);
 const HOST = process.env.HOST || '127.0.0.1';
 const SESSION_SECRET = process.env.SESSION_SECRET || 'plan-fakt-local-development-secret';
+const TELEGRAM_BOT_USERNAME = String(process.env.TELEGRAM_BOT_USERNAME || 'OtchetFact_bot').replace(/^@/, '').trim();
 const BMSU_SITE_ORIGINS = new Set(String(process.env.BMSU_SITE_ORIGINS || 'https://bimmax.pro')
   .split(',').map(value => value.trim()).filter(Boolean));
 const PYTHON = process.env.PYTHON_PATH || 'C:\\Users\\root\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\python\\python.exe';
@@ -200,7 +201,8 @@ function normalizeStore(source) {
     reportSettings: {
       planFact: organization.reportSettings?.planFact !== false,
       workforce: organization.reportSettings?.workforce === true,
-      machinery: organization.reportSettings?.machinery === true
+      machinery: organization.reportSettings?.machinery === true,
+      photos: organization.reportSettings?.photos !== false
     }
   }));
   normalized.projects = (Array.isArray(source.projects) ? source.projects : []).map(project => {
@@ -316,8 +318,26 @@ function persist() {
 
 function cleanUser(user) {
   if (!user) return null;
-  const { passwordHash: _, ...safe } = user;
+  const { passwordHash: _, telegramInvite: __, ...safe } = user;
   return safe;
+}
+
+function telegramInviteTokenHash(token) {
+  return crypto.createHash('sha256').update(String(token || '')).digest('hex');
+}
+
+function createTelegramInvite(account, createdBy) {
+  const token = crypto.randomBytes(24).toString('base64url');
+  account.telegramInvite = {
+    tokenHash: telegramInviteTokenHash(token),
+    createdAt: isoNow(),
+    expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+    createdBy
+  };
+  return {
+    url: `https://t.me/${TELEGRAM_BOT_USERNAME}?startapp=invite_${token}`,
+    expiresAt: account.telegramInvite.expiresAt
+  };
 }
 
 function defaultProjectId(user) {
@@ -450,6 +470,11 @@ function reportedActualFor(workId, throughDate = '9999-12-31') {
     .flatMap(r => r.facts).filter(f => f.workId === workId).reduce((sum, f) => sum + Number(f.amount || 0), 0);
 }
 
+function reportedActualForMonth(workId, month) {
+  return store.reports.filter(r => r.status === 'sent' && r.reportDate.startsWith(month))
+    .flatMap(r => r.facts).filter(f => f.workId === workId).reduce((sum, f) => sum + Number(f.amount || 0), 0);
+}
+
 function actualFor(workId, throughDate = '9999-12-31') {
   const work = store.works.find(item => item.id === workId);
   return Number(work?.priorActual || 0) + reportedActualFor(workId, throughDate);
@@ -575,6 +600,28 @@ function validateTelegram(initData) {
   return telegramUser;
 }
 
+function consumeTelegramInvite(initData, telegramUser) {
+  const startParam = String(new URLSearchParams(initData).get('start_param') || '');
+  const match = startParam.match(/^invite_([A-Za-z0-9_-]{20,50})$/);
+  if (!match) return null;
+  const tokenHash = telegramInviteTokenHash(match[1]);
+  const account = store.users.find(item => item.status === 'active' && item.telegramInvite?.tokenHash === tokenHash);
+  if (!account || Date.parse(account.telegramInvite.expiresAt) < Date.now()) throw Object.assign(new Error('Ссылка для привязки Telegram недействительна или устарела'), { status: 403, code: 'TELEGRAM_INVITE_INVALID' });
+  const telegramId = String(telegramUser.id);
+  const owner = store.users.find(item => item.id !== account.id && String(item.telegramId || '') === telegramId);
+  if (owner) throw Object.assign(new Error('Этот Telegram ID уже привязан к другому пользователю'), { status: 409, code: 'TELEGRAM_ALREADY_LINKED' });
+  if (account.telegramId && account.telegramId !== telegramId) throw Object.assign(new Error('Пользователь уже привязан к другому Telegram ID'), { status: 409, code: 'TELEGRAM_ALREADY_LINKED' });
+  const oldValue = { telegramId: account.telegramId || null };
+  account.telegramId = telegramId;
+  delete account.telegramInvite;
+  const existingLink = store.telegramLinks.find(link => link.userId === account.id);
+  if (existingLink) Object.assign(existingLink, { telegramId, linkedAt: isoNow() });
+  else store.telegramLinks.push({ userId: account.id, telegramId, linkedAt: isoNow() });
+  audit(account.id, defaultProjectId(account), 'user.telegram_link', oldValue, { telegramId, verified: true, source: 'invite' });
+  persist();
+  return account;
+}
+
 async function api(req, res, url) {
   const method = req.method;
   const route = url.pathname;
@@ -603,7 +650,7 @@ async function api(req, res, url) {
   if (method === 'POST' && route === '/api/auth/telegram') {
     const body = await parseBody(req);
     const telegramUser = validateTelegram(body.initData || '');
-    const user = userByTelegramId(telegramUser.id);
+    const user = consumeTelegramInvite(body.initData || '', telegramUser) || userByTelegramId(telegramUser.id);
     if (!user) return send(res, 403, { error: 'Telegram ID не найден. Войдите по логину и паролю, чтобы привязать аккаунт.', code: 'TELEGRAM_ACCOUNT_NOT_LINKED', telegramId: String(telegramUser.id) });
     const authData = telegramAuthPayload(user);
     if (!authData.projectChoices.length) return send(res, 403, { error: 'Для аккаунта не назначен объект. Обратитесь к администратору.', code: 'TELEGRAM_PROJECT_NOT_ASSIGNED' });
@@ -657,9 +704,11 @@ async function api(req, res, url) {
 
   if (method === 'GET' && route === '/api/works') {
     const a = requireProject(user, projectId);
+    const project = store.projects.find(item => item.id === projectId);
+    const reportMonth = dateInTimezone(project?.timezone).slice(0, 7);
     const works = allowedWorks(user, projectId).map(w => {
       const accumulatedActual = actualFor(w.id);
-      const base = { id: w.id, name: w.name, code: w.code, hierarchy: w.hierarchy || [], unit: w.unit, organizationId: w.organizationId, totalVolume: w.totalVolume, priorActual: Number(w.priorActual || 0), accumulatedActual, remaining: remainingFor(w) };
+      const base = { id: w.id, name: w.name, code: w.code, hierarchy: w.hierarchy || [], unit: w.unit, organizationId: w.organizationId, totalVolume: w.totalVolume, priorActual: Number(w.priorActual || 0), accumulatedActual, monthActual: reportedActualForMonth(w.id, reportMonth), remaining: remainingFor(w) };
       return a.role === 'responsible' ? base : { ...base, dailyPlan: w.dailyPlan };
     });
     return send(res, 200, { works });
@@ -682,7 +731,9 @@ async function api(req, res, url) {
     const a = requireProject(user, body.projectId, ['responsible', 'admin', 'manager']);
     const result = await serializedMutation(() => {
       const facts = (body.facts || []).filter(f => Number(f.amount) > 0).map(f => ({ workId: String(f.workId), amount: Number(f.amount) }));
-      if (!facts.length) throw Object.assign(new Error('Добавьте хотя бы одну выполненную работу'), { status: 400 });
+      const noWork = body.noWork === true;
+      const noFacts = noWork || body.noFacts === true;
+      if (!facts.length && !noFacts) throw Object.assign(new Error('Укажите выполненный объём или отметьте, что объёмов нет'), { status: 400 });
       const workIds = new Set();
       for (const fact of facts) {
         if (workIds.has(fact.workId)) throw Object.assign(new Error('Одна работа добавлена дважды'), { status: 400 });
@@ -692,11 +743,11 @@ async function api(req, res, url) {
         const remaining = remainingFor(work);
         if (fact.amount > remaining + 1e-9) throw Object.assign(new Error(`По работе «${work.name}» доступный остаток — ${remaining} ${work.unit}`), { status: 409 });
       }
-      const orgIds = [...new Set(facts.map(f => store.works.find(w => w.id === f.workId).organizationId))];
+      const orgIds = facts.length ? [...new Set(facts.map(f => store.works.find(w => w.id === f.workId).organizationId))] : [...(a.organizationIds || [])];
       if (orgIds.length !== 1) throw Object.assign(new Error('Один отчёт должен относиться к одной подрядной организации'), { status: 400 });
       const organization = store.organizations.find(item => item.id === orgIds[0]);
-      const settings = organization?.reportSettings || { planFact: true, workforce: false, machinery: false };
-      const report = { id: id('report'), projectId: body.projectId, organizationId: orgIds[0], userId: user.id, reportDate: body.reportDate || new Date().toISOString().slice(0, 10), createdAt: isoNow(), sentAt: isoNow(), status: 'sent', facts, workers: settings.workforce ? (body.workers || []).filter(x => x.name && Number(x.count) > 0).map(x => ({ name: String(x.name).slice(0, 80), count: Number(x.count) })) : [], equipment: settings.machinery ? (body.equipment || []).filter(x => x.name && Number(x.count) > 0).map(x => ({ name: String(x.name).slice(0, 80), count: Number(x.count) })) : [], photos: (body.photos || []).slice(0, 10).map(p => ({ id: id('photo'), name: String(p.name || 'Фото'), type: String(p.type || 'image/jpeg'), dataUrl: String(p.dataUrl || '').slice(0, 4_000_000) })) };
+      const settings = organization?.reportSettings || { planFact: true, workforce: false, machinery: false, photos: true };
+      const report = { id: id('report'), projectId: body.projectId, organizationId: orgIds[0], userId: user.id, reportDate: body.reportDate || new Date().toISOString().slice(0, 10), createdAt: isoNow(), sentAt: isoNow(), status: 'sent', noFacts: noFacts && !noWork, noWork, facts, workers: noWork ? [] : settings.workforce ? (body.workers || []).filter(x => x.name && Number(x.count) > 0).map(x => ({ name: String(x.name).slice(0, 80), count: Number(x.count) })) : [], equipment: noWork ? [] : settings.machinery ? (body.equipment || []).filter(x => x.name && Number(x.count) > 0).map(x => ({ name: String(x.name).slice(0, 80), count: Number(x.count) })) : [], photos: noWork ? [] : settings.photos !== false ? (body.photos || []).slice(0, 10).map(p => ({ id: id('photo'), name: String(p.name || 'Фото'), type: String(p.type || 'image/jpeg'), dataUrl: String(p.dataUrl || '').slice(0, 4_000_000) })) : [] };
       store.reports.push(report);
       audit(user.id, body.projectId, 'report.submit', null, { reportId: report.id, facts: report.facts });
       for (const row of report.workers) if (!store.dictionaries.professions.includes(row.name)) store.dictionaries.professions.push(row.name);
@@ -725,13 +776,14 @@ async function api(req, res, url) {
 
   if (method === 'POST' && route === '/api/admin/projects') {
     const body = await parseBody(req); requireProject(user, body.contextProjectId, ['admin']);
+    const contextProject = store.projects.find(item => item.id === body.contextProjectId);
     const customerOrganization = {
       fullName: String(body.customerOrganizationFullName || '').trim().slice(0, 180),
-      portalName: String(body.customerOrganizationName || '').trim().slice(0, 80),
-      portalPage: String(body.portalPage || '').trim().replace(/^\/+/, '').slice(0, 120)
+      portalName: String(contextProject?.customerOrganization?.portalName || '').slice(0, 80),
+      portalPage: String(contextProject?.customerOrganization?.portalPage || '').slice(0, 120)
     };
-    if (!customerOrganization.fullName || !customerOrganization.portalName) throw Object.assign(new Error('Укажите полное и портальное название организации-заказчика'), { status: 400 });
-    const project = { id: id('project'), name: String(body.name).slice(0, 150), shortName: String(body.shortName).slice(0, 40), status: 'active', timezone: body.timezone || 'Europe/Moscow', customerOrganization, contractorIds: [] };
+    if (!customerOrganization.fullName || !customerOrganization.portalName) throw Object.assign(new Error('Для организации-заказчика не настроены системные параметры портала'), { status: 400 });
+    const project = { id: id('project'), name: String(body.name).slice(0, 150), shortName: String(body.shortName).slice(0, 40), status: 'active', timezone: contextProject?.timezone || 'Europe/Moscow', customerOrganization, contractorIds: [] };
     store.projects.push(project);
     const adminOrganization = { fullName: user.organization?.fullName || customerOrganization.fullName, customerOrganizationName: customerOrganization.portalName };
     user.assignments.push({ projectId: project.id, role: 'admin', organizationIds: [], organization: adminOrganization, customerOrganization: { ...customerOrganization } });
@@ -739,14 +791,55 @@ async function api(req, res, url) {
     return send(res, 201, { project });
   }
 
+  const projectUpdateMatch = route.match(/^\/api\/admin\/projects\/([^/]+)$/);
+  if ((method === 'PATCH' || method === 'POST') && projectUpdateMatch) {
+    const body = await parseBody(req); requireProject(user, body.contextProjectId, ['admin']);
+    const project = store.projects.find(item => item.id === projectUpdateMatch[1]);
+    if (!project) return send(res, 404, { error: 'Объект не найден' });
+    const customerOrganization = {
+      ...(project.customerOrganization || {}),
+      fullName: String(body.customerOrganizationFullName || '').trim().slice(0, 180)
+    };
+    const name = String(body.name || '').trim().slice(0, 150);
+    const shortName = String(body.shortName || '').trim().slice(0, 40);
+    if (!name || !shortName || !customerOrganization.fullName) throw Object.assign(new Error('Заполните названия объекта и организации-заказчика'), { status: 400 });
+    if (!['active', 'archive'].includes(body.status)) throw Object.assign(new Error('Некорректный статус объекта'), { status: 400 });
+    const oldValue = structuredClone(project);
+    Object.assign(project, { name, shortName, status: body.status, customerOrganization });
+    for (const account of store.users) {
+      const assigned = account.assignments.find(item => item.projectId === project.id);
+      if (assigned) assigned.customerOrganization = { ...customerOrganization };
+    }
+    audit(user.id, project.id, 'project.update', oldValue, project); persist();
+    return send(res, 200, { project });
+  }
+
   if (method === 'POST' && route === '/api/admin/organizations') {
     const body = await parseBody(req); requireProject(user, body.projectId, ['admin']);
-    const organization = { id: id('org'), fullName: String(body.fullName).slice(0, 180), shortName: String(body.shortName).slice(0, 80), status: 'active', projectIds: [body.projectId], reportSettings: { planFact: true, workforce: body.workforce === true, machinery: body.machinery === true } };
+    const organization = { id: id('org'), fullName: String(body.fullName).slice(0, 180), shortName: String(body.shortName).slice(0, 80), status: 'active', projectIds: [body.projectId], reportSettings: { planFact: true, workforce: body.workforce === true, machinery: body.machinery === true, photos: body.photos !== false } };
     store.organizations.push(organization);
     const project = store.projects.find(item => item.id === body.projectId);
     if (project && !project.contractorIds.includes(organization.id)) project.contractorIds.push(organization.id);
     audit(user.id, body.projectId, 'organization.create', null, organization); persist();
     return send(res, 201, { organization });
+  }
+
+  const organizationUpdateMatch = route.match(/^\/api\/admin\/organizations\/([^/]+)$/);
+  if (method === 'PATCH' && organizationUpdateMatch) {
+    const body = await parseBody(req); requireProject(user, body.projectId, ['admin']);
+    const organization = store.organizations.find(item => item.id === organizationUpdateMatch[1] && item.projectIds.includes(body.projectId));
+    if (!organization) return send(res, 404, { error: 'Организация не найдена' });
+    const fullName = String(body.fullName || '').trim().slice(0, 180);
+    const shortName = String(body.shortName || '').trim().slice(0, 80);
+    if (!fullName || !shortName) throw Object.assign(new Error('Заполните полное и краткое наименование'), { status: 400 });
+    if (!['active', 'archive'].includes(body.status)) throw Object.assign(new Error('Некорректный статус организации'), { status: 400 });
+    const oldValue = structuredClone(organization);
+    Object.assign(organization, { fullName, shortName, status: body.status, reportSettings: { planFact: true, workforce: body.workforce === true, machinery: body.machinery === true, photos: body.photos !== false } });
+    for (const account of store.users) {
+      for (const assigned of account.assignments.filter(item => item.projectId === body.projectId && item.organizationIds.includes(organization.id))) assigned.organization = { fullName, customerOrganizationName: assigned.customerOrganization?.portalName || '' };
+    }
+    audit(user.id, body.projectId, 'organization.update', oldValue, organization); persist();
+    return send(res, 200, { organization });
   }
 
   const organizationSettingsMatch = route.match(/^\/api\/admin\/organizations\/([^/]+)\/settings$/);
@@ -755,7 +848,7 @@ async function api(req, res, url) {
     const organization = store.organizations.find(item => item.id === organizationSettingsMatch[1] && item.projectIds.includes(body.projectId));
     if (!organization) return send(res, 404, { error: 'Организация не найдена' });
     const oldValue = organization.reportSettings || null;
-    organization.reportSettings = { planFact: body.planFact !== false, workforce: body.workforce === true, machinery: body.machinery === true };
+    organization.reportSettings = { planFact: body.planFact !== false, workforce: body.workforce === true, machinery: body.machinery === true, photos: body.photos !== false };
     audit(user.id, body.projectId, 'organization.settings', oldValue, organization.reportSettings); persist();
     return send(res, 200, { organization });
   }
@@ -777,8 +870,39 @@ async function api(req, res, url) {
     if (!created.name || !created.login) throw Object.assign(new Error('Заполните ФИО и логин'), { status: 400 });
     store.users.push(created);
     if (created.telegramId) store.telegramLinks.push({ userId: created.id, telegramId: created.telegramId, linkedAt: isoNow() });
+    const telegramInvite = body.createTelegramInvite === true && !created.telegramId ? createTelegramInvite(created, user.id) : null;
     audit(user.id, body.projectId, 'user.create', null, cleanUser(created)); persist();
-    return send(res, 201, { user: cleanUser(created) });
+    return send(res, 201, { user: cleanUser(created), telegramInvite });
+  }
+
+  const userUpdateMatch = route.match(/^\/api\/admin\/users\/([^/]+)$/);
+  if (method === 'PATCH' && userUpdateMatch) {
+    const body = await parseBody(req); requireProject(user, body.projectId, ['admin']);
+    const account = store.users.find(item => item.id === userUpdateMatch[1]);
+    if (!account) return send(res, 404, { error: 'Пользователь не найден' });
+    if (!['admin', 'manager', 'responsible'].includes(body.role)) throw Object.assign(new Error('Некорректная роль'), { status: 400 });
+    if (account.id === user.id && (body.role !== 'admin' || body.status !== 'active')) throw Object.assign(new Error('Нельзя отключить собственный доступ администратора'), { status: 400 });
+    const name = String(body.name || '').trim().slice(0, 120);
+    const login = String(body.login || '').trim().slice(0, 80);
+    const telegramId = String(body.telegramId || '').trim().slice(0, 40);
+    if (!name || !login) throw Object.assign(new Error('Заполните ФИО и логин'), { status: 400 });
+    if (!['active', 'archive'].includes(body.status)) throw Object.assign(new Error('Некорректный статус пользователя'), { status: 400 });
+    if (store.users.some(item => item.id !== account.id && item.login.toLowerCase() === login.toLowerCase())) throw Object.assign(new Error('Такой логин уже используется'), { status: 409 });
+    if (telegramId && store.users.some(item => item.id !== account.id && item.telegramId === telegramId)) throw Object.assign(new Error('Telegram ID уже привязан'), { status: 409 });
+    const organizationIds = body.role === 'responsible' && body.organizationId ? [String(body.organizationId)] : [];
+    if (body.role === 'responsible' && !organizationIds.length) throw Object.assign(new Error('Для Ответственного укажите организацию'), { status: 400 });
+    const project = store.projects.find(item => item.id === body.projectId);
+    const contractor = organizationIds.length ? store.organizations.find(item => item.id === organizationIds[0] && item.projectIds.includes(body.projectId)) : null;
+    if (organizationIds.length && !contractor) throw Object.assign(new Error('Организация не найдена'), { status: 400 });
+    const oldValue = cleanUser(structuredClone(account));
+    const assignedOrganization = { fullName: String(contractor?.fullName || project?.customerOrganization?.fullName || ''), customerOrganizationName: String(project?.customerOrganization?.portalName || '') };
+    let assigned = account.assignments.find(item => item.projectId === body.projectId);
+    if (!assigned) { assigned = { projectId: body.projectId }; account.assignments.push(assigned); }
+    Object.assign(assigned, { role: body.role, organizationIds, organization: assignedOrganization, customerOrganization: { ...(project?.customerOrganization || {}) } });
+    Object.assign(account, { name, login, telegramId, status: body.status, organization: assignedOrganization });
+    if (body.password) account.passwordHash = passwordHash(String(body.password));
+    audit(user.id, body.projectId, 'user.update', oldValue, cleanUser(account)); persist();
+    return send(res, 200, { user: cleanUser(account) });
   }
 
   if (method === 'GET' && route === '/api/schedules') {
@@ -823,7 +947,7 @@ async function api(req, res, url) {
     const incoming = parsed.works.map(source => {
       let organization = store.organizations.find(o => o.projectIds.includes(body.projectId) && (o.shortName.toLowerCase() === source.organization.toLowerCase() || o.fullName.toLowerCase() === source.organization.toLowerCase()));
       if (!organization) {
-        organization = { id: id('org'), fullName: source.organization, shortName: source.organization, status: 'active', projectIds: [body.projectId], reportSettings: { planFact: true, workforce: false, machinery: false } };
+        organization = { id: id('org'), fullName: source.organization, shortName: source.organization, status: 'active', projectIds: [body.projectId], reportSettings: { planFact: true, workforce: false, machinery: false, photos: true } };
         store.organizations.push(organization);
       }
       const values = { projectId: body.projectId, organizationId: organization.id, name: source.name, code: source.code, hierarchy: source.hierarchy || [], unit: source.unit, totalVolume: source.totalVolume, priorActual: source.priorActual || 0, monthlyPlan: source.monthlyPlan || 0, sourceRemaining: source.sourceRemaining, dailyPlan: source.plans, sourceKey: source.sourceKey, sourceSheet: source.sheet, sourceRow: source.row, sourceFactRow: source.factRow || source.row, factColumns: source.factColumns, scheduleId: schedule.id };

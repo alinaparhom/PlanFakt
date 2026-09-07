@@ -84,6 +84,17 @@
   }
 
   /**
+   * Telegram может открыть исходную ссылку через один или несколько HTTP-
+   * редиректов портала. В результате pathname уже бывает /start/ или /, но
+   * параметры Mini App остаются в query/fragment. Они надёжнее имени страницы.
+   */
+  function hasTelegramLaunchData() {
+    var sourceParams = new URLSearchParams(window.location.search || '');
+    var hashParams = new URLSearchParams(String(window.location.hash || '').replace(/^#/, ''));
+    return Boolean(hashParams.get('tgWebAppData') || sourceParams.get('tgWebAppData'));
+  }
+
+  /**
    * Адрес отдельного приложения «План / Факт».
    *
    * Для боевого размещения адрес можно передать одним из способов:
@@ -550,6 +561,14 @@
    * ==================================================================== */
 
   function start() {
+    // Telegram-вход обрабатывается раньше режима страницы и проверки доступа
+    // к карточкам. Иначе серверный redirect bmsu4.php -> /start/ приводит
+    // пользователя на портал или на экран «Раздел недоступен».
+    if (hasTelegramLaunchData()) {
+      document.body.style.display = 'none';
+      openApplication(true);
+      return;
+    }
     var isLegacyPage = currentPageName().toLowerCase() === LEGACY_PAGE;
     var hasLegacyClass = document.body && document.body.classList.contains('bmsu4-page');
     if (isLegacyPage || hasLegacyClass) {

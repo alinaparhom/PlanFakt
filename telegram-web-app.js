@@ -17,20 +17,6 @@ function apiUrl(webAppUrl, route) {
   return new URL(String(route || '').replace(/^\/+/, ''), base).toString();
 }
 
-function sameWebAppUrl(left, right) {
-  try {
-    const a = new URL(String(left || '').trim());
-    const b = new URL(String(right || '').trim());
-    a.hash = '';
-    b.hash = '';
-    if (a.pathname === '/') a.pathname = '';
-    if (b.pathname === '/') b.pathname = '';
-    return a.toString() === b.toString();
-  } catch {
-    return false;
-  }
-}
-
 async function verifyPlanFactApp(webAppUrl, fetchImpl = fetch) {
   const normalized = directAppUrl(webAppUrl);
   const healthUrl = apiUrl(normalized, 'api/health');
@@ -48,4 +34,4 @@ async function verifyPlanFactApp(webAppUrl, fetchImpl = fetch) {
   return normalized;
 }
 
-module.exports = { apiUrl, directAppUrl, sameWebAppUrl, verifyPlanFactApp };
+module.exports = { apiUrl, directAppUrl, verifyPlanFactApp };

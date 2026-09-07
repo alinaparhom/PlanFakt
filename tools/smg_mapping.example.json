@@ -1,0 +1,20 @@
+{
+  "sheet": "СМГ",
+  "dataStartRow": 3,
+  "hierarchyColumns": ["C", "D", "E"],
+  "columns": {
+    "number": "A",
+    "code": "B",
+    "name": "F",
+    "organization": "G",
+    "unit": "I",
+    "total": "J",
+    "priorActual": "K",
+    "remaining": "L",
+    "monthlyPlan": "M",
+    "rowType": "N",
+    "firstDay": "O"
+  },
+  "planRowValue": "План",
+  "factRowOffset": 1
+}
