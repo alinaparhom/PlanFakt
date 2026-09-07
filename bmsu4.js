@@ -1,9 +1,20 @@
 /*
  * bmsu4.js — раздел «План/факт» заказчика.
  *
+ * Копия файла портала: на bimmax.pro он лежит по пути
+ * public_html/js/other/bmsu4.js. Здесь он хранится рядом с приложением,
+ * чтобы правки проверялись тестом tools/bmsu4_entry_test.js. Меняя файл,
+ * обновляйте обе копии.
+ *
+ * Сам раздел работает отдельным приложением «План / Факт» (репозиторий
+ * alinaparhom/PlanFakt). Его публичный адрес портал берёт из .env
+ * (PLAN_FACT_APP_URL): странице-переходу он приходит атрибутом
+ * body[data-plan-fakt-url], а главной странице организации — коротким ответом
+ * bmsu4.php?config=1.
+ *
  * Один файл работает в двух режимах и сам определяет нужный:
  *
- * 1. Главная страница организации есть (su-21.php и подобные).
+ * 1. Главная страница организации (su-21.php и подобные).
  *    Модуль подключается из js/startmain/startmain.js и рисует плитку
  *    «План/факт» в секции «Доступные разделы».
  *    Плитка появляется ТОЛЬКО если администратор включил карточку
@@ -12,11 +23,14 @@
  *    карточка выключена и на главной не отображается совсем — ни рабочей
  *    плиткой, ни закрытой «под замочком». Так раздел остаётся личным для
  *    организации заказчика.
+ *    По клику открывается компактное окно входа поверх страницы: сервер
+ *    приложения проверяет логин и выдаёт одноразовый билет на 60 секунд.
  *
- * 2. Устаревшая страница карточки bmsu4.php (body.bmsu4-page).
- *    Она больше не показывается пользователю. Вход выполняется во всплывающем
- *    окне прямо на главной странице, после чего приложение открывается уже
- *    с подтверждённой сервером сессией.
+ * 2. Страница-переход bmsu4.php (body.bmsu4-page).
+ *    Показывает «Открываем раздел…» и уводит в приложение. Именно сюда
+ *    попадает Telegram Mini App, если в BotFather указан адрес портала:
+ *    параметры запуска Telegram приходят во фрагменте адреса, сервер их не
+ *    видит, поэтому решение принимается здесь, в браузере.
  *
  * Настройки доступа читаются всегда свежими: cache: 'no-store', заголовок
  * Cache-Control и метка времени в адресе запроса.
@@ -27,7 +41,8 @@
   var TILE_ID = 'bmsu4-tile';                 // идентификатор карточки в «Доступе к карточкам»
   var TILE_TITLE = 'План/факт';
   var TILE_TEXT = 'Плановые и фактические показатели организации';
-  var LEGACY_PAGE = 'bmsu4.php';              // прежняя страница-каркас
+  var GATE_PAGE = 'bmsu4.php';                // страница-переход
+  var CONFIG_URL = 'bmsu4.php';               // она же отдаёт адрес приложения по ?config=1
   var LOCAL_APP_URL = 'http://127.0.0.1:4173/'; // только для локальной разработки
   var ACCESS_URL = 'lg/dostupcard.json';      // настройки доступа к карточкам
   var STYLE_ID = 'bmsu4-style';
@@ -37,6 +52,7 @@
   var MOUNT_RETRY_LIMIT = 30;                 // ~12 секунд ожидания разметки главной страницы
   var SCRIPT_NODE = document.currentScript;   // currentScript недоступен после загрузки файла
   var loginModal = null;
+  var appUrlRequest = null;                   // адрес приложения спрашивается у портала один раз
 
   // Иконка карточки: оси графика, столбцы «план» и «факт», пунктир целевого уровня.
   var TILE_ICON =
@@ -83,6 +99,12 @@
     }
   }
 
+  /** Портал открыт на локальном стенде разработчика? */
+  function isLocalHost() {
+    var host = String(window.location.hostname || '').toLowerCase();
+    return host === 'localhost' || host === '127.0.0.1' || host === '::1' || host === '';
+  }
+
   /**
    * Telegram может открыть исходную ссылку через один или несколько HTTP-
    * редиректов портала. В результате pathname уже бывает /start/ или /, но
@@ -95,15 +117,15 @@
   }
 
   /**
-   * Адрес отдельного приложения «План / Факт».
+   * Адрес отдельного приложения «План / Факт». Порядок источников:
+   *   window.PLAN_FACT_APP_URL = 'https://bimmax.pro/planfakt/';
+   *   <script src="bmsu4.js" data-app-url="https://...">
+   *   <body data-plan-fakt-url="https://..."> — так его подставляет bmsu4.php
+   *                                             из PLAN_FACT_APP_URL в .env
    *
-   * Для боевого размещения адрес можно передать одним из способов:
-   *   window.PLAN_FACT_APP_URL = 'https://plan-fakt.example.ru/';
-   *   <script src="bmsu4.js" data-app-url="https://..."></script>
-   *   <body data-plan-fakt-url="https://...">
-   *
-   * Если адрес отдельно не задан, сохраняем прежнее поведение карточки:
-   * открываем локально запущенный блок План / Факт.
+   * Возвращает null, если адрес не задан: на телефоне переход по 127.0.0.1
+   * уводил бы пользователя на его собственное устройство, поэтому локальный
+   * запасной адрес работает только на самом стенде разработчика.
    */
   function applicationUrl() {
     var configured = typeof window.PLAN_FACT_APP_URL === 'string'
@@ -117,30 +139,39 @@
       : '';
     var target = configured || scriptUrl || bodyUrl;
 
-    if (!target) target = LOCAL_APP_URL;
+    if (!target && isLocalHost()) {
+      target = LOCAL_APP_URL;
+    }
+    if (!target) {
+      return null;
+    }
 
     try {
       return new URL(target, window.location.href);
     } catch (error) {
-      return new URL('/', window.location.href);
+      return null;
     }
   }
 
   /** Переход прямо к форме входа приложения с контекстом исходной страницы. */
   function openApplication(replaceHistory, ticket) {
     var target = applicationUrl();
+    if (!target) {
+      return false;
+    }
     var sourceParams = new URLSearchParams(window.location.search || '');
     var hashParams = new URLSearchParams(String(window.location.hash || '').replace(/^#/, ''));
     var currentPage = currentPageName();
-    var page = currentPage.toLowerCase() === LEGACY_PAGE
+    var onGatePage = currentPage.toLowerCase() === GATE_PAGE;
+    var page = onGatePage
       ? String(sourceParams.get('page') || '').trim()
       : currentPage;
-    var organization = currentPage.toLowerCase() === LEGACY_PAGE
-      ? String(sourceParams.get('org') || currentOrganization()).trim()
+    var organization = onGatePage
+      ? String(sourceParams.get('org') || '').trim()
       : currentOrganization();
 
     // Telegram обычно добавляет initData и служебные параметры во fragment
-    // исходного URL. При переходе со старой bmsu4.php fragment браузером на
+    // исходного URL. При переходе со страницы bmsu4.php fragment браузером на
     // новый адрес не переносится, поэтому раньше приложение теряло Telegram ID
     // и показывало обычный web-вход. Переносим только известные параметры; их
     // подпись всё равно обязательно проверяется сервером перед авторизацией.
@@ -176,6 +207,7 @@
     } else {
       window.location.assign(target.toString());
     }
+    return true;
   }
 
   function element(tag, className, text) {
@@ -218,6 +250,7 @@
 
   function loginEndpoint() {
     var base = applicationUrl();
+    if (!base) return '';
     base.search = '';
     base.hash = '';
     if (base.pathname.slice(-1) !== '/') base.pathname += '/';
@@ -279,9 +312,14 @@
     form.addEventListener('submit', function (event) {
       event.preventDefault();
       error.textContent = '';
+      var endpoint = loginEndpoint();
+      if (!endpoint) {
+        error.textContent = 'Адрес приложения не настроен администратором портала';
+        return;
+      }
       submit.disabled = true;
       submit.textContent = 'Проверяем…';
-      fetch(loginEndpoint(), {
+      fetch(endpoint, {
         method: 'POST',
         mode: 'cors',
         headers: { 'Content-Type': 'application/json' },
@@ -343,7 +381,20 @@
       if (event && typeof event.preventDefault === 'function') {
         event.preventDefault();
       }
-      showLoginModal();
+      if (applicationUrl()) {
+        showLoginModal();
+        return;
+      }
+      // Адрес ещё не спросили у портала либо его там нет. Спрашиваем и решаем:
+      // окно входа с готовым адресом или страница bmsu4.php с объяснением,
+      // что администратору нужно задать PLAN_FACT_APP_URL в .env.
+      loadConfiguredAppUrl().then(function () {
+        if (applicationUrl()) {
+          showLoginModal();
+          return;
+        }
+        window.location.assign(GATE_PAGE + '?page=' + encodeURIComponent(currentPageName()));
+      });
     }
 
     /** Разметка плитки в стиле остальных разделов главной страницы. */
@@ -493,38 +544,16 @@
         return;
       }
 
-      fetch(ACCESS_URL + '?ts=' + Date.now(), {
-        cache: 'no-store',
-        credentials: 'same-origin',
-        headers: { 'Cache-Control': 'no-cache, no-store' }
-      })
-        .then(function (response) {
-          if (!response.ok) {
-            throw new Error('bmsu4-access-unavailable');
-          }
-          return response.json();
-        })
-        .then(function (data) {
-          var blocks = data && Array.isArray(data.blocks) ? data.blocks : [];
-          var matched = null;
-          for (var i = 0; i < blocks.length; i += 1) {
-            if (blocks[i] && blocks[i].page === page) {
-              matched = blocks[i];
-              break;
-            }
-          }
-          var cards = matched && Array.isArray(matched.cards) ? matched.cards : [];
-          allowed = cards.indexOf(TILE_ID) !== -1;
+      readCardAccess(page)
+        .then(function (result) {
+          allowed = result.allowed;
           if (!allowed) {
             unmount();
             return;
           }
           ensureStyles();
           mount();
-          var statuses = matched && matched.statuses && typeof matched.statuses === 'object'
-            ? matched.statuses
-            : {};
-          applyStatus(typeof statuses[TILE_ID] === 'string' ? statuses[TILE_ID] : '');
+          applyStatus(result.status);
         })
         .catch(function () {
           // Настройки недоступны — карточка остаётся выключенной.
@@ -545,15 +574,131 @@
     });
   }
 
+  /**
+   * Адрес приложения из настроек портала (bmsu4.php?config=1 читает
+   * PLAN_FACT_APP_URL из .env). Нужен главной странице организации: плитку
+   * подключает startmain.js, и передать адрес разметкой там негде.
+   * Запрашивается один раз за загрузку страницы.
+   */
+  function loadConfiguredAppUrl() {
+    if (appUrlRequest) {
+      return appUrlRequest;
+    }
+    appUrlRequest = fetch(CONFIG_URL + '?config=1&ts=' + Date.now(), {
+      cache: 'no-store',
+      credentials: 'same-origin',
+      headers: { 'Cache-Control': 'no-cache, no-store' }
+    })
+      .then(function (response) {
+        if (!response.ok) {
+          throw new Error('bmsu4-config-unavailable');
+        }
+        return response.json();
+      })
+      .then(function (data) {
+        var url = data && typeof data.appUrl === 'string' ? data.appUrl.trim() : '';
+        if (url) {
+          window.PLAN_FACT_APP_URL = url;
+        }
+        return url;
+      })
+      .catch(function () {
+        return '';
+      });
+    return appUrlRequest;
+  }
+
+  /** Настройка «Доступ к карточкам» для страницы организации. */
+  function readCardAccess(page) {
+    return fetch(ACCESS_URL + '?ts=' + Date.now(), {
+      cache: 'no-store',
+      credentials: 'same-origin',
+      headers: { 'Cache-Control': 'no-cache, no-store' }
+    })
+      .then(function (response) {
+        if (!response.ok) {
+          throw new Error('bmsu4-access-unavailable');
+        }
+        return response.json();
+      })
+      .then(function (data) {
+        var blocks = data && Array.isArray(data.blocks) ? data.blocks : [];
+        var matched = null;
+        for (var i = 0; i < blocks.length; i += 1) {
+          if (blocks[i] && blocks[i].page === page) {
+            matched = blocks[i];
+            break;
+          }
+        }
+        var cards = matched && Array.isArray(matched.cards) ? matched.cards : [];
+        var statuses = matched && matched.statuses && typeof matched.statuses === 'object'
+          ? matched.statuses
+          : {};
+        return {
+          allowed: cards.indexOf(TILE_ID) !== -1,
+          status: typeof statuses[TILE_ID] === 'string' ? statuses[TILE_ID] : ''
+        };
+      });
+  }
+
   /* ======================================================================
-   *  Режим 2. Страница раздела bmsu4.php
+   *  Режим 2. Страница-переход bmsu4.php
    * ==================================================================== */
 
-  function initPageMode() {
-    // Старый экран «Здесь пока нет блоков» больше не участвует в сценарии.
-    // replace() также не оставляет его в истории браузера по кнопке «Назад».
-    document.body.style.display = 'none';
-    openApplication(true);
+  function initGateMode() {
+    var gate = document.getElementById('bmsu4-gate');
+    var denied = document.getElementById('bmsu4-denied');
+    var unconfigured = document.getElementById('bmsu4-unconfigured');
+
+    function showOnly(node) {
+      if (gate && gate !== node) gate.hidden = true;
+      if (denied && denied !== node) denied.hidden = true;
+      if (unconfigured && unconfigured !== node) unconfigured.hidden = true;
+      if (node) node.hidden = false;
+    }
+
+    if (!applicationUrl()) {
+      showOnly(unconfigured);
+      return;
+    }
+
+    // Запуск из Telegram: у пользователя нет ни сессии портала, ни страницы
+    // организации — вход проверит само приложение по подписи Init Data.
+    if (hasTelegramLaunchData()) {
+      openApplication(true);
+      return;
+    }
+
+    // Адрес набран руками или открыт по прямой ссылке, без страницы
+    // организации: проверять карточку не по чему, вход спросит приложение.
+    var params = new URLSearchParams(window.location.search || '');
+    var page = String(params.get('page') || '').trim();
+    if (!page) {
+      openApplication(true);
+      return;
+    }
+
+    // Карточку для страницы организации включает администратор портала.
+    // На сервере это уже посчитано, а fetch остаётся запасным путём, если
+    // страницу отдал кеш браузера или прокси.
+    var serverAnswer = document.body && document.body.dataset
+      ? String(document.body.dataset.cardEnabled || '')
+      : '';
+    if (serverAnswer === '1') {
+      openApplication(true);
+      return;
+    }
+    readCardAccess(page)
+      .then(function (result) {
+        if (result.allowed) {
+          openApplication(true);
+          return;
+        }
+        showOnly(denied);
+      })
+      .catch(function () {
+        showOnly(denied);
+      });
   }
 
   /* ======================================================================
@@ -561,18 +706,17 @@
    * ==================================================================== */
 
   function start() {
-    // Telegram-вход обрабатывается раньше режима страницы и проверки доступа
-    // к карточкам. Иначе серверный redirect bmsu4.php -> /start/ приводит
-    // пользователя на портал или на экран «Раздел недоступен».
-    if (hasTelegramLaunchData()) {
-      document.body.style.display = 'none';
-      openApplication(true);
+    var isGatePage = currentPageName().toLowerCase() === GATE_PAGE;
+    var hasGateClass = document.body && document.body.classList.contains('bmsu4-page');
+    if (isGatePage || hasGateClass) {
+      initGateMode();
       return;
     }
-    var isLegacyPage = currentPageName().toLowerCase() === LEGACY_PAGE;
-    var hasLegacyClass = document.body && document.body.classList.contains('bmsu4-page');
-    if (isLegacyPage || hasLegacyClass) {
-      initPageMode();
+    // Telegram открыл страницу организации напрямую: параметры запуска
+    // остаются в адресе, и приложение должно получить их без лишнего клика.
+    if (hasTelegramLaunchData() && applicationUrl()) {
+      document.body.style.display = 'none';
+      openApplication(true);
       return;
     }
     initTileMode();

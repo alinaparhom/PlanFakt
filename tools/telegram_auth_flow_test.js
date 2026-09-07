@@ -5,6 +5,7 @@ const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
 const { spawn } = require('child_process');
+const { prepareTestData } = require('./test_store');
 
 const root = path.join(__dirname, '..');
 const testToken = '123456789:test-only-token';
@@ -14,7 +15,7 @@ const testParent = path.join(root, '.test-tmp');
 fs.mkdirSync(testParent, { recursive: true });
 const testRoot = fs.mkdtempSync(path.join(testParent, 'plan-fakt-telegram-'));
 const dataDir = path.join(testRoot, 'data');
-fs.cpSync(path.join(root, 'data'), dataDir, { recursive: true });
+prepareTestData(dataDir);
 
 function read(name) {
   return JSON.parse(fs.readFileSync(path.join(dataDir, name), 'utf8'));
@@ -27,6 +28,14 @@ function write(name, value) {
 const projects = read('projects.json');
 const users = read('users.json');
 const organizations = read('organizations.json');
+// Начальное хранилище идёт без подрядчиков: на объекте «main» их заводит
+// администратор. Тесту подрядчик нужен, поэтому на чистой копии добавляем его
+// сами — иначе проверка приглашения падала бы ещё до запроса к серверу.
+if (!organizations.some(item => (item.projectIds || []).includes('main'))) {
+  organizations.push({ id: 'contractor-1', fullName: 'ООО «Подрядчик № 1»', shortName: 'Подрядчик 1', status: 'active', projectIds: ['main'], reportSettings: { planFact: true, workforce: false, machinery: false } });
+  const mainProject = projects.find(item => item.id === 'main');
+  if (mainProject) mainProject.contractorIds = [...(mainProject.contractorIds || []), 'contractor-1'];
+}
 const customer = { fullName: 'ОАО «Заказчик № 2»', portalName: 'customer-2', portalPage: 'customer-2.php' };
 const secondProject = { id: 'second', name: 'Второй объект', shortName: 'Объект 2', status: 'active', timezone: 'Europe/Moscow', customerOrganization: customer, contractorIds: ['contractor-2'] };
 projects.push(secondProject);

@@ -25,19 +25,39 @@ function locationFor(pathname, search = '') {
   };
 }
 
+/**
+ * Заглушка страницы bmsu4.php: три блока экрана, как в разметке портала.
+ * Скрипт выбирает, какой из них показать, поэтому в тесте достаточно
+ * запоминать hidden у каждого.
+ */
+function gateDocument(options = {}) {
+  const blocks = {
+    'bmsu4-gate': { hidden: false },
+    'bmsu4-denied': { hidden: true },
+    'bmsu4-unconfigured': { hidden: true }
+  };
+  const document = {
+    currentScript: { dataset: options.appUrl ? { appUrl: options.appUrl } : {} },
+    readyState: 'complete',
+    body: {
+      dataset: options.dataset || {},
+      style: {},
+      classList: { contains: value => value === 'bmsu4-page' }
+    },
+    getElementById: id => blocks[id] || null
+  };
+  return { blocks, document, visible: () => Object.keys(blocks).filter(id => !blocks[id].hidden) };
+}
+
 function runTelegramLegacyRedirect() {
   const location = locationFor('/bmsu4.php');
   const signedInitData = 'query_id=test&user=%7B%22id%22%3A16370894%7D&auth_date=1770000000&hash=signed';
   location.value.hash = `#tgWebAppData=${encodeURIComponent(signedInitData)}&tgWebAppVersion=9.1&tgWebAppPlatform=android`;
   location.value.href += location.value.hash;
-  const document = {
-    currentScript: { dataset: { appUrl: 'https://plan-fakt.example/app/' } },
-    readyState: 'complete',
-    body: { dataset: {}, style: {}, classList: { contains: () => false } }
-  };
+  const gate = gateDocument({ appUrl: 'https://plan-fakt.example/app/' });
 
   vm.runInNewContext(source, {
-    window: { location: location.value }, document, URL, URLSearchParams
+    window: { location: location.value }, document: gate.document, URL, URLSearchParams
   });
 
   const target = new URL(location.state.replaced);
@@ -70,16 +90,14 @@ function runTelegramRedirectAfterPortalRewrite(pathname) {
   assert.equal(document.body.style.display, 'none');
 }
 
-function runLegacyRedirect() {
+function runGateRedirectWithCard() {
   const location = locationFor('/bmsu4.php', '?page=bmsu-4.php&org=bmsu-4');
-  const document = {
-    currentScript: { dataset: { appUrl: 'https://plan-fakt.example/app/' } },
-    readyState: 'complete',
-    body: { dataset: {}, style: {}, classList: { contains: () => false } }
-  };
+  // data-card-enabled='1' проставляет bmsu4.php: карточка включена в
+  // «Доступе к карточкам» для этой организации.
+  const gate = gateDocument({ appUrl: 'https://plan-fakt.example/app/', dataset: { cardEnabled: '1' } });
 
   vm.runInNewContext(source, {
-    window: { location: location.value }, document, URL, URLSearchParams
+    window: { location: location.value }, document: gate.document, URL, URLSearchParams
   });
 
   const target = new URL(location.state.replaced);
@@ -88,7 +106,50 @@ function runLegacyRedirect() {
   assert.equal(target.searchParams.get('page'), 'bmsu-4.php');
   assert.equal(target.searchParams.get('org'), 'bmsu-4');
   assert.ok(!location.state.replaced.includes('bmsu4.php'));
-  assert.equal(document.body.style.display, 'none');
+}
+
+function runGateRedirectWithoutPage() {
+  // Адрес набран руками: страницы организации нет, проверять карточку не по
+  // чему — вход спрашивает само приложение.
+  const location = locationFor('/bmsu4.php');
+  const gate = gateDocument({ appUrl: 'https://plan-fakt.example/app/' });
+
+  vm.runInNewContext(source, {
+    window: { location: location.value }, document: gate.document, URL, URLSearchParams
+  });
+
+  const target = new URL(location.state.replaced);
+  assert.equal(target.origin + target.pathname, 'https://plan-fakt.example/app/');
+  assert.equal(target.searchParams.get('source'), 'site');
+}
+
+async function runGateDeniedWithoutCard() {
+  const location = locationFor('/bmsu4.php', '?page=bmsu-4.php');
+  const gate = gateDocument({ appUrl: 'https://plan-fakt.example/app/', dataset: { cardEnabled: '0' } });
+  const fetch = async () => ({ ok: true, json: async () => ({ blocks: [] }) });
+
+  vm.runInNewContext(source, {
+    window: { location: location.value }, document: gate.document, fetch, URL, URLSearchParams, Date
+  });
+  await new Promise(resolve => setImmediate(resolve));
+  await new Promise(resolve => setImmediate(resolve));
+
+  assert.deepEqual(gate.visible(), ['bmsu4-denied'], 'Должен остаться только экран «Раздел недоступен»');
+  assert.equal(location.state.replaced, '', 'Перехода в приложение быть не должно');
+}
+
+function runGateUnconfigured() {
+  // Публичная страница без PLAN_FACT_APP_URL: переход по 127.0.0.1 увёл бы
+  // пользователя на его собственный телефон, поэтому показываем объяснение.
+  const location = locationFor('/bmsu4.php');
+  const gate = gateDocument({});
+
+  vm.runInNewContext(source, {
+    window: { location: location.value }, document: gate.document, URL, URLSearchParams
+  });
+
+  assert.deepEqual(gate.visible(), ['bmsu4-unconfigured'], 'Должен остаться только экран «Раздел ещё не подключён»');
+  assert.equal(location.state.replaced, '', 'Без адреса приложения перехода быть не должно');
 }
 
 class Element {
@@ -182,21 +243,17 @@ function runLocalFallback() {
   location.value.href = 'http://127.0.0.1/bmsu-4.php';
   location.value.protocol = 'http:';
   location.value.hostname = '127.0.0.1';
-  const document = {
-    currentScript: { dataset: {} },
-    readyState: 'complete',
-    body: { dataset: {}, style: {}, classList: { contains: value => value === 'bmsu4-page' } }
-  };
+  const gate = gateDocument({});
 
   vm.runInNewContext(source, {
-    window: { location: location.value }, document, URL, URLSearchParams
+    window: { location: location.value }, document: gate.document, URL, URLSearchParams
   });
 
   const target = new URL(location.state.replaced);
   assert.equal(target.origin + target.pathname, 'http://127.0.0.1:4173/');
 }
 
-async function runPublicFallback() {
+async function runTileWithoutAppUrl() {
   const location = locationFor('/bmsu-4.php');
   const grid = new Element();
   const body = new Element('body');
@@ -223,20 +280,76 @@ async function runPublicFallback() {
   });
   await new Promise(resolve => setImmediate(resolve));
   grid.children[0].listeners.click({ preventDefault() {} });
-  assert.ok(body.findByClass('pf-login-overlay'), 'На публичной странице должно открыться окно входа');
+  // Адрес приложения плитка спрашивает у портала (bmsu4.php?config=1), поэтому
+  // решение принимается не сразу — ждём ответа.
+  await new Promise(resolve => setImmediate(resolve));
+  await new Promise(resolve => setImmediate(resolve));
+  // Адреса нет и в настройках: окно входа отправляло бы логин в никуда,
+  // поэтому плитка ведёт на bmsu4.php — там написано, что настроить.
+  assert.ok(!body.findByClass('pf-login-overlay'), 'Без адреса приложения окно входа открываться не должно');
+  assert.ok(location.state.assigned.startsWith('bmsu4.php?page='), `Ожидался переход на bmsu4.php, получено: ${location.state.assigned}`);
+}
+
+async function runTileAppUrlFromPortal() {
+  // Плитку подключает startmain.js без атрибутов: адрес приложения приходит
+  // ответом bmsu4.php?config=1, и окно входа открывается уже с ним.
+  const location = locationFor('/bmsu-4.php');
+  const grid = new Element();
+  const body = new Element('body');
+  body.dataset = {};
+  body.classList = { contains: () => false };
+  body.contains = () => true;
+  const document = {
+    currentScript: { dataset: {} },
+    readyState: 'complete',
+    body,
+    head: new Element('head'),
+    getElementById: () => null,
+    createElement: tag => new Element(tag),
+    querySelector: selector => selector === '.su21-tiles-group--active .su21-tiles-group__grid' ? grid : null,
+    addEventListener() {},
+    removeEventListener() {}
+  };
+  const requested = [];
+  const fetch = async url => {
+    requested.push(String(url));
+    if (String(url).includes('config=1')) {
+      return { ok: true, json: async () => ({ appUrl: 'https://bimmax.pro/planfakt/' }) };
+    }
+    return { ok: true, json: async () => ({ blocks: [{ page: 'bmsu-4.php', cards: ['bmsu4-tile'] }] }) };
+  };
+  const windowStub = { location: location.value };
+
+  vm.runInNewContext(source, {
+    window: windowStub, document, fetch, URL, URLSearchParams,
+    Date, Object, Array, String, setTimeout, clearTimeout,
+    setInterval: () => 1, clearInterval, MutationObserver: undefined
+  });
+  await new Promise(resolve => setImmediate(resolve));
+  grid.children[0].listeners.click({ preventDefault() {} });
+  await new Promise(resolve => setImmediate(resolve));
+  await new Promise(resolve => setImmediate(resolve));
+
+  assert.ok(requested.some(url => url.includes('bmsu4.php?config=1')), 'Адрес приложения у портала не запрошен');
+  assert.equal(windowStub.PLAN_FACT_APP_URL, 'https://bimmax.pro/planfakt/');
+  assert.ok(body.findByClass('pf-login-overlay'), 'Окно входа должно открыться с полученным адресом');
   assert.equal(location.state.assigned, '', 'Переход не должен происходить до входа');
 }
 
 (async () => {
-  runLegacyRedirect();
+  runGateRedirectWithCard();
+  runGateRedirectWithoutPage();
+  await runGateDeniedWithoutCard();
+  runGateUnconfigured();
   runTelegramLegacyRedirect();
   runTelegramRedirectAfterPortalRewrite('/start/');
   runTelegramRedirectAfterPortalRewrite('/');
   runTelegramRedirectAfterPortalRewrite('/bmsu-4.php');
   await runTileRedirect();
   runLocalFallback();
-  await runPublicFallback();
-  console.log('Модальный вход План/Факт и переход по одноразовому билету работают.');
+  await runTileWithoutAppUrl();
+  await runTileAppUrlFromPortal();
+  console.log('Страница-переход, модальный вход и одноразовый билет План/Факт работают.');
 })().catch(error => {
   console.error(error);
   process.exit(1);

@@ -44,7 +44,14 @@ const SESSION_SECRET = process.env.SESSION_SECRET || 'plan-fakt-local-developmen
 const TELEGRAM_BOT_USERNAME = String(process.env.TELEGRAM_BOT_USERNAME || 'OtchetFact_bot').replace(/^@/, '').trim();
 const BMSU_SITE_ORIGINS = new Set(String(process.env.BMSU_SITE_ORIGINS || 'https://bimmax.pro')
   .split(',').map(value => value.trim()).filter(Boolean));
-const PYTHON = process.env.PYTHON_PATH || 'C:\\Users\\root\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\python\\python.exe';
+// Кто вправе открыть приложение во фрейме: портал и клиенты Telegram.
+// Мобильный Telegram использует WebView и в списке не нуждается, а Telegram
+// Desktop и web-версия — фрейм, без разрешения окно у них остаётся пустым.
+const FRAME_ANCESTORS = [...BMSU_SITE_ORIGINS,
+  'https://web.telegram.org', 'https://webk.telegram.org', 'https://webz.telegram.org'];
+// python3 — рабочее значение и на сервере, и в Docker. Путь к интерпретатору
+// Windows задаётся только через PYTHON_PATH в .env локального стенда.
+const PYTHON = process.env.PYTHON_PATH || 'python3';
 const loginTickets = new Map();
 const IMPORT_COLUMN_NAMES = ['number', 'code', 'name', 'organization', 'unit', 'total', 'priorActual', 'remaining', 'monthlyPlan', 'rowType', 'firstDay'];
 const DEFAULT_IMPORT_MAPPING = {
@@ -1012,7 +1019,10 @@ const mime = { '.html': 'text/html; charset=utf-8', '.css': 'text/css; charset=u
 const server = http.createServer(async (req, res) => {
   res.setHeader('X-Content-Type-Options', 'nosniff');
   res.setHeader('Referrer-Policy', 'same-origin');
-  res.setHeader('X-Frame-Options', 'SAMEORIGIN');
+  // Telegram Desktop и web.telegram.org открывают Mini App во фрейме.
+  // Прежний X-Frame-Options: SAMEORIGIN блокировал такой запуск, поэтому
+  // рамки задаются точным списком: сам домен, портал и клиенты Telegram.
+  res.setHeader('Content-Security-Policy', `frame-ancestors 'self' ${FRAME_ANCESTORS.join(' ')}`);
   try {
     const url = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
     const origin = String(req.headers.origin || '');

@@ -9,6 +9,12 @@ const { apiUrl, directAppUrl, verifyPlanFactApp } = require('../telegram-web-app
   assert.throws(() => directAppUrl('http://127.0.0.1:4173/'), /HTTPS/);
   assert.throws(() => directAppUrl('https://bimmax.pro/bmsu4.php'), /портала/);
   assert.throws(() => directAppUrl('https://bimmax.pro/bmsu-4.php'), /портала/);
+  // Путь к серверному .env, скопированный из переписки, — не адрес приложения.
+  assert.throws(() => directAppUrl('https://bimmax.pro/.env'), /служебный файл/);
+  assert.throws(() => directAppUrl('https://localhost:4173/'), /локальный адрес/);
+  // Размещение в подпапке портала — рабочий вариант и запрещаться не должно.
+  assert.equal(directAppUrl('https://bimmax.pro/planfakt/'), 'https://bimmax.pro/planfakt/');
+  assert.equal(apiUrl('https://bimmax.pro/planfakt/', 'api/health'), 'https://bimmax.pro/planfakt/api/health');
 
   const verified = await verifyPlanFactApp('https://plan.example/app/', async url => {
     assert.equal(url, 'https://plan.example/app/api/health');

@@ -71,7 +71,7 @@ async function request(path, cookie, options = {}) {
   const knownBody = await telegramKnown.json();
   if (!telegramKnown.ok || knownBody.user?.id !== 'u_admin') throw new Error('Известный Telegram ID открыл неверный аккаунт');
   if (knownBody.projectId !== data.projects[0].id) throw new Error('Telegram-вход не вернул объект связанного пользователя');
-  if (knownBody.startRoute !== 'analysis') throw new Error('Telegram-вход администратора не открыл стартовую страницу его объекта');
+  if (knownBody.startRoute !== 'planfact') throw new Error('Telegram-вход администратора не открыл стартовую страницу его объекта');
   const telegramUnknown = await fetch(`${base}/api/auth/telegram`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ initData: telegramInitData(999999999) }) });
   const unknownBody = await telegramUnknown.json();
   if (telegramUnknown.status !== 403 || unknownBody.code !== 'TELEGRAM_ACCOUNT_NOT_LINKED' || unknownBody.telegramId !== '999999999') throw new Error('Сценарий привязки неизвестного Telegram ID не сработал');
